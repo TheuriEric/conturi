@@ -19,7 +19,7 @@ except Exception as e:
 
 try:
     embeddings = CohereEmbeddings(
-        cohere_api_key=os.getenv("COHERE API KEY"),
+        cohere_api_key=os.getenv("COHERE_API_KEY"),
         model="embed-english-v3.0"
     )
     logger.info("Successfully loaded the embedding model: Cohere")
@@ -38,13 +38,13 @@ except Exception as e:
 
 
 class ContentRetriever():
-    def rag_tool(query: str) -> str:
+    def rag_tool(self, query: str) -> str:
         """
         A tool to retrieve relevant context from the Pinecone knowledge base."""
         try:
             logger.info(f"RAG Tool: Searching for documents related to the topic: '{query}'...")
             retrieved_docs = knowledge_base.get_relevant_documents(query)
-            context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+            context = "\n\n-------------\n\n".join([doc.page_content for doc in retrieved_docs])
             
             if not context:
                 logger.warning("RAG Tool: No relevant information found.")
