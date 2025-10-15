@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 try:
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     pdf_path = f"{project_root}/knowledge"
     persist_directory = f"{project_root}/db"
     logger.info("Registered required directories")
@@ -38,5 +38,20 @@ except Exception as e:
 
 
 class ContentRetriever():
-    def get_content(self):
-        pass
+    def rag_tool(query: str) -> str:
+        """
+        A tool to retrieve relevant context from the Pinecone knowledge base."""
+        try:
+            logger.info(f"RAG Tool: Searching for documents related to the topic: '{query}'...")
+            retrieved_docs = knowledge_base.get_relevant_documents(query)
+            context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+            
+            if not context:
+                logger.warning("RAG Tool: No relevant information found.")
+                return "No relevant information found in the knowledge base."
+            
+            logger.info(f"RAG Tool: Successfully retrieved context.")
+            return context
+        except Exception as e:
+            logger.error(f"RAG Tool: Error during retrieval - {e}", exc_info=True)
+            return f"Error retrieving context from knowledge base: {e}. Please proceed without."

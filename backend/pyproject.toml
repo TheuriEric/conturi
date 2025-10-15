@@ -1,0 +1,23 @@
+[project]
+name = "conturi"
+version = "0.1.0"
+description = "conturi using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]>=0.152.0,<1.0.0"
+]
+
+[project.scripts]
+conturi = "conturi.main:run"
+run_crew = "conturi.main:run"
+train = "conturi.main:train"
+replay = "conturi.main:replay"
+test = "conturi.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
