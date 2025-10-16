@@ -2,6 +2,9 @@ import logging
 from langchain_chroma import Chroma
 from langchain_cohere import CohereEmbeddings
 from pathlib import Path
+from bs4 import BeautifulSoup
+from ddgs import DDGS
+import requests
 import os
 
 logging.basicConfig(level=logging.INFO,
@@ -55,3 +58,54 @@ class ContentRetriever():
         except Exception as e:
             logger.error(f"RAG Tool: Error during retrieval - {e}", exc_info=True)
             return f"Error retrieving context from knowledge base: {e}. Please proceed without."
+        
+    def web_search_tool(query: str, max_results: int = 5) -> str:
+        """
+        Searches the web using DuckDuckGo and extracts readable content
+        from top search results. Ideal for generating blog posts.
+        """
+        try:
+            logger.info(f"Web Search Tool: Searching for '{query}'...")
+            results_text = ""
+
+            with DDGS() as ddgs:
+                results = [r for r in ddgs.text(query, max_results=max_results)]
+
+            if not results:
+                return "No results found for your query."
+
+            logger.info(f"Web Search Tool: Retrieved {len(results)} search results.")
+            articles = []
+
+            for i, result in enumerate(results, 1):
+                title = result.get("title", "No title")
+                link = result.get("href", None)
+                snippet = result.get("body", "")
+                if not link:
+                    continue
+
+                logger.info(f"Fetching article {i}: {title} ({link})")
+
+                try:
+                    response = requests.get(link, timeout=8)
+                    soup = BeautifulSoup(response.text, "html.parser")
+
+                    # Extract readable paragraphs
+                    paragraphs = [p.get_text() for p in soup.find_all("p")]
+                    article_text = "\n".join(paragraphs[:5])  # first few paragraphs only
+
+                    articles.append(f"### {title}\n🔗 {link}\n\n{article_text}\n")
+                except Exception as e:
+                    logger.warning(f"Skipping {link}: {e}")
+                    continue
+
+            if not articles:
+                return "No readable articles found from the search results."
+
+            results_text = "\n\n---\n\n".join(articles)
+            logger.info("Web Search Tool: Successfully extracted article content.")
+            return results_text
+
+        except Exception as e:
+            logger.error(f"Web Search Tool failed: {e}", exc_info=True)
+            return f"Error searching the web: {e}"
