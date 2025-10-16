@@ -3,9 +3,9 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.tools import tool
 from typing import List
-from .components import ContentRetriever, project_root, logger
+from .components import ContentRetriever, project_root, logger, AIModels
 
-
+model = AIModels()
 content_retriever = ContentRetriever()
 
 @tool("rag_tool")
@@ -25,6 +25,7 @@ def web_search_tool(query: str, max_results: int = 5) -> str:
         return content_retriever.web_search_tool(query, max_results)
     except Exception as e:
         logger.exception("Failed to connect to the web search tool")
+
 @CrewBase
 class SynqCrew():
     """Conturi crew"""
@@ -53,29 +54,33 @@ class SynqCrew():
 
     @agent
     def main_agent(self) -> Agent:
-        return Agent(config=self.agents_config["main_agent"], verbose=True)
+        return Agent(config=self.agents_config["main_agent"],
+                     llm=model.crew_llm(),verbose=True)
 
     @agent
     def event_agent(self) -> Agent:
         return Agent(config=self.agents_config["event_agent"],
-                     tools=[web_search_tool, rag_tool],
+                     tools=[web_search_tool, rag_tool],llm=model.crew_llm(),
                        verbose=True)
 
     @agent
     def professional_agent(self) -> Agent:
         return Agent(config=self.agents_config["professional_agent"],
                      tools=[web_search_tool, rag_tool],
+                     llm=model.crew_llm(),
                     verbose=True)
 
     @agent
     def career_agent(self) -> Agent:
         return Agent(config=self.agents_config["career_agent"],
                      tools=[web_search_tool, rag_tool],
+                     llm=model.crew_llm(),
                     verbose=True)
 
     @agent
     def presentation_agent(self) -> Agent:
-        return Agent(config=self.agents_config["presentation_agent"], verbose=True)
+        return Agent(config=self.agents_config["presentation_agent"],
+                     llm=model.crew_llm(), verbose=True)
 
 
    

@@ -1,7 +1,6 @@
 import logging
 from langchain_chroma import Chroma
 from langchain_cohere import CohereEmbeddings
-from langchain_groq  import ChatGroq
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import os
@@ -116,7 +115,6 @@ class ContentRetriever():
             return f"Error searching the web: {e}"
 
 
-       
 async def router(user_query: str) -> str:
     """Route queries intelligently between CrewAI or LangChain (general chat)."""
     try:
@@ -144,8 +142,10 @@ async def router(user_query: str) -> str:
         logger.exception("Router failed to route the conversation. proceeding with langchain")
         return "langchain"
 
+
 class AIModels():
-    def router_llm(self):
+    @staticmethod
+    def router_llm():
         from langchain_groq import ChatGroq
         try:
             logger.info("Connecting to the router LLM")
@@ -161,8 +161,8 @@ class AIModels():
             except Exception as e2:
                 logger.exception("Failed to connect to a routing LLM")
                 raise e2
-
-    def general_llm(self):
+    @staticmethod
+    def general_llm():
         from langchain_groq import ChatGroq
         try:
             logger.info("Connecting to the general chat LLM")
@@ -175,8 +175,8 @@ class AIModels():
         except Exception as e:
             logger.exception("Failed to connect to initial LLM. Reconnecting to another model")
             return e
-
-    def crew_llm(self):
+    @staticmethod
+    def crew_llm():
         from crewai import LLM
         try:
             logger.info("Connecting to the CrewAI llm")
@@ -196,4 +196,6 @@ class AIModels():
             except Exception as e2:
                 logger.exception("Fallback Gemini LLM also failed")
                 raise e2
-        
+            
+async def assistant():
+    pass
