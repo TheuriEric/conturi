@@ -47,7 +47,7 @@ except Exception as e:
 class ContentRetriever():
     def rag_tool(self, query: str) -> str:
         """
-        A tool to retrieve relevant context from the Pinecone knowledge base."""
+        A tool to retrieve relevant context from the Chroma knowledge base."""
         try:
             logger.info(f"RAG Tool: Searching for documents related to the topic: '{query}'...")
             retrieved_docs = knowledge_base.get_relevant_documents(query)
@@ -120,10 +120,7 @@ class ContentRetriever():
 async def router(user_query: str) -> str:
     """Route queries intelligently between CrewAI or LangChain (general chat)."""
     try:
-        router_llm = ChatGroq(
-            model=os.getenv("GROQ_MODEL"),
-            api_key=os.getenv("GROQ_API_KEY")
-        )
+        router_llm = AIModels.router_llm()
         logger.info("Successfully connected to the router LLM")
     except Exception as e:
         logger.exception("Failed to connect to the router LLM")
@@ -144,5 +141,59 @@ async def router(user_query: str) -> str:
         logger.info(f"Routing conversation to {route}")
         return route.strip().lower()
     except Exception as e:
-        logger.exception("Router failed to route the conversation. prpceeding with langchain")
+        logger.exception("Router failed to route the conversation. proceeding with langchain")
         return "langchain"
+
+class AIModels():
+    def router_llm(self):
+        from langchain_groq import ChatGroq
+        try:
+            logger.info("Connecting to the router LLM")
+            router_llm =  ChatGroq(model=os.getenv("ROUTER_LLM"),
+                                   api_key=os.getenv("GROQ_API_KEY"))
+            logger.info("Connected to the LLM")
+            return router_llm
+        except Exception as e:
+            logger.exception("Failed to connect to the initial router. Retrying...")
+            try:
+                logger.info("Connected to the general LLM")
+                return AIModels.general_llm()
+            except Exception as e2:
+                logger.exception("Failed to connect to a routing LLM")
+                raise e2
+
+    def general_llm(self):
+        from langchain_groq import ChatGroq
+        try:
+            logger.info("Connecting to the general chat LLM")
+            general_llm = ChatGroq(
+                model=os.getenv("GENERAL_MODEL"),
+                api_key=os.getenv("GROQ_API_KEY")
+            )
+            logger.info("Connected to the LLM")
+            return general_llm
+        except Exception as e:
+            logger.exception("Failed to connect to initial LLM. Reconnecting to another model")
+            return e
+
+    def crew_llm(self):
+        from crewai import LLM
+        try:
+            logger.info("Connecting to the CrewAI llm")
+            return LLM(
+                model=os.getenv("CREWAI_MODEL"),
+                api_key=os.getenv("GROQ_API_KEY"),
+                temperature=0.7
+            )
+        except Exception as e:
+            logger.exception("Failed to connect to the initial LLM")
+            try:
+                return LLM(
+                model="gemini/gemini-2.5-pro",
+                api_key=os.getenv("GOOGLE_API_KEY"),
+                temperature=0.5
+                )
+            except Exception as e2:
+                logger.exception("Fallback Gemini LLM also failed")
+                raise e2
+        
