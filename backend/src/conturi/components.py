@@ -59,7 +59,7 @@ class ContentRetriever():
             logger.error(f"RAG Tool: Error during retrieval - {e}", exc_info=True)
             return f"Error retrieving context from knowledge base: {e}. Please proceed without."
         
-    def web_search_tool(query: str, max_results: int = 5) -> str:
+    def web_search_tool(self,query: str, max_results: int = 5) -> str:
         """
         Searches the web using DuckDuckGo and extracts readable content
         from top search results. Ideal for generating blog posts.
@@ -90,7 +90,6 @@ class ContentRetriever():
                     response = requests.get(link, timeout=8)
                     soup = BeautifulSoup(response.text, "html.parser")
 
-                    # Extract readable paragraphs
                     paragraphs = [p.get_text() for p in soup.find_all("p")]
                     article_text = "\n".join(paragraphs[:5])  # first few paragraphs only
 
@@ -100,7 +99,9 @@ class ContentRetriever():
                     continue
 
             if not articles:
+                logger.info("Returned no articles from the search results")
                 return "No readable articles found from the search results."
+            
 
             results_text = "\n\n---\n\n".join(articles)
             logger.info("Web Search Tool: Successfully extracted article content.")
