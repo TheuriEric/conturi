@@ -12,7 +12,7 @@ class EventOutput(BaseModel):
     event_summary: str = Field(..., description="A brief description of the event..what it entails..who'll be there, price and the rest")
     fun_fact: str = Field(..., description="A fun fact about the event,theme or anything related to the event")
 
-class PersonProfiles(BaseModel):
+class PersonaProfiles(BaseModel):
     name: str = Field(..., description="The name and title of the person")
     role: str = Field(..., description="A brief description of their role and persona in general")
 
@@ -29,3 +29,8 @@ class JobDetails(BaseModel):
 
 class CareerOutput(BaseModel):
     openings: Dict[str, JobDetails] = Field(...,description="Summary of available related positions")
+
+class N8n(BaseModel):
+    email: str = Field(..., description="User's email")
+    schedule: str = Field(..., description="Does the user want to be sent emails of the outputs")
+    prompt: str = Field(..., description="How does the user want the email to be sent? Any special requests/formatting?")

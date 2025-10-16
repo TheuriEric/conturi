@@ -1,17 +1,268 @@
-research_task:
+main_task:
   description: >
-    Conduct a thorough research about {topic}
-    Make sure you find any interesting and relevant information given
-    the current year is {current_year}.
-  expected_output: >
-    A list with 10 bullet points of the most relevant information about {topic}
-  agent: researcher
+    **Role:** Main Orchestration Agent  
+    **Objective:** Act as the intelligent decision-maker that interprets user intent, determines which specialized agent(s)
+    (event_agent, professional_agent, or career_agent) should be engaged, and coordinates their execution.  
 
-reporting_task:
-  description: >
-    Review the context you got and expand each topic into a full section for a report.
-    Make sure the report is detailed and contains any and all relevant information.
+    **Behavior:**  
+      - Analyze the user’s query or conversation to determine what they’re seeking:
+        - If the user is asking about events → delegate to `event_agent`.
+        - If the user wants to know about attendees, professionals, or organizations → include `professional_agent`.
+        - If the user requests job, internship, or career opportunities → delegate to `career_agent`.
+        - If the user asks for multiple types of information (e.g., events + professionals), delegate to all relevant agents.
+      - Before invoking any agent, verify that all required user context is available (location, interests, field of study, etc.).
+      - If context is incomplete, ask concise clarification questions before delegation.
+      - Once tasks are executed, gather and synthesize all agent outputs into one cohesive response.
+
+    **Guidelines:**  
+      - Always prioritize **accuracy and user intent** over volume of information.  
+      - Maintain a **unified tone** that reflects the Synq brand: professional, youthful, and conversational.  
+      - Use **clear reasoning** when deciding which agents to activate and why.  
+      - Ensure **consistency** in formatting and schema alignment across all responses.  
+      - When multiple agents are invoked, merge their outputs naturally (e.g., “Here are exciting events and the professionals attending them”).  
+      - Avoid repetition or contradiction between agent outputs.  
+
   expected_output: >
-    A fully fledged report with the main topics, each with a full section of information.
-    Formatted as markdown without '```'
-  agent: reporting_analyst
+    A structured JSON response detailing:
+    ```json
+    {
+      "detected_intent": "events" | "career" | "networking" | "mixed",
+      "required_agents": ["event_agent", "professional_agent"],
+      "missing_information": ["location", "interests"],
+      "final_compiled_output": "A unified response combining outputs from the relevant agents, with tone consistency and professional formatting."
+    }
+    ```
+
+  config:
+    enable_context_check: true
+    allow_multi_agent_calls: true
+    fallback_strategy: "Ask for clarification if user input is insufficient"
+    output_format: "Structured JSON + readable summary"
+    max_concurrent_agents: 3
+
+  agent: main_agent
+  run_mode: orchestration
+
+event_task:
+  description: >
+    **Role:** Event Agent  
+    **Objective:** Find and curate events that align with the user’s preferences (location, price range, and experience type).  
+    **Behavior:** Use web_search_tool or integrated APIs to explore recent and upcoming events that match what the user wants to experience.  
+    **Guidelines:**  
+      - Focus on verified, high-quality, and interesting events relevant to the user’s input.  
+      - Adapt tone and event style based on user’s vibe (serene, adventurous, professional, etc.).  
+      - Include practical details (name, location, brief event description) and a unique fun fact about the event, venue, or culture.  
+      - Keep fun facts rare, surprising, and educational — not generic.  
+      - Avoid copying text directly from event sites; summarize naturally in an engaging, youthful, and professional tone.  
+  expected_output: >
+    A structured response following this schema:  
+    ```python
+    class EventOutput(BaseModel):
+        event_name: str = Field(..., description="Event name/title")
+        location: str = Field(..., description="Event location")
+        event_summary: str = Field(..., description="A brief description of the event, what it entails, who'll be there, pricing, and highlights")
+        fun_fact: str = Field(..., description="A rare, interesting, or educational fact related to the event, theme, or location")
+    ```
+  agent: event_agent
+  run_mode: independent
+
+professional_task:
+  description: >
+    **Role:** Professional Agent  
+    **Objective:** Analyze information about a given event or event theme to identify:
+      - People confirmed or likely to attend  
+      - Individuals who have shown interest in the event or topic  
+      - Companies and organizations associated with it, including their background, relevance, and networking value.  
+
+    **Behavior:**  
+      - Use the `web_search_tool` and social graph reasoning to gather and summarize credible data about event participants and connected organizations.  
+      - For each category (Confirmed, Likely, Interested, Companies), return a ranked list of the most relevant profiles.  
+      - Compute a `relevance_score` (0–1.0) for each profile based on alignment with the event theme, professional value, and verified association.  
+
+    **Guidelines:**  
+      - **Credibility:** Only use authoritative sources — event websites, LinkedIn, press releases, and official company pages.  
+      - **Clarity:** Keep tone professional and engaging.  
+      - **Limit & Rank:**  
+          - Return a *maximum of 10 entries per category*, sorted by `relevance_score`.  
+          - If more entities are found, summarize that additional profiles exist (`more_available: true`).  
+      - **Companies:** For each organization, include when it was founded, what it does, why it matters, and key people relevant to networking.  
+      - **Individuals:** For each person, briefly describe their professional role, influence, and relevance to the event.  
+      - **Avoid speculation:** Clearly mark attendance likelihood as `confirmed` or `likely`.  
+      - Structure output for direct use in Synq’s professional networking module.
+
+  expected_output: >
+    A structured professional insight report using the following schemas:  
+
+    ```python
+    class PersonaProfiles(BaseModel):
+        name: str = Field(..., description="The name and title of the person")
+        role: str = Field(..., description="A brief description of their role, influence, and relevance to the event/theme")
+        relevance_score: Optional[float] = Field(None, description="Numeric score (0–1.0) showing how relevant this person is to the event/theme")
+
+    class CompanyProfiles(BaseModel):
+        name: str = Field(..., description="Company or organization name")
+        description: str = Field(..., description="Summary of what the company does, its relevance to the event, and how it could benefit the user professionally")
+        founded: Optional[str] = Field(None, description="Year or brief story of when and how the company was founded")
+        key_people: Optional[List[PersonaProfiles]] = Field(None, description="List of notable people in the company relevant for networking or collaboration")
+    ```
+
+    The final output should be a structured JSON object with these top-level keys:
+    ```json
+    {
+      "Confirmed Attendees": [PersonaProfiles],
+      "Likely Attendees": [PersonaProfiles],
+      "Interested Individuals": [PersonaProfiles],
+      "Associated Companies or Organizations": [CompanyProfiles],
+      "more_available": false
+    }
+    ```
+
+  config:
+    max_results_per_category: 10
+    include_relevance_score: true
+    ranking_criteria: "Relevance to event/theme, professional value, verified association"
+    allow_uncertain_entries: false
+
+  agent: professional_agent
+  run_mode: independent
+
+career_task:
+  description: >
+    **Role:** Career Intelligence Agent  
+    **Objective:** Use user-provided profile information to find and summarize verified
+    job, internship, and graduate opportunities that fit their background, interests, and goals.  
+
+    **User input examples:**  
+      - Name, age, year of study  
+      - Area of study or specialization  
+      - Career goals or brief summary of interests  
+      - Preferred location(s) and salary range  
+      - Desired type of work (remote, hybrid, in-person)  
+
+    **Behavior:**  
+      - Use web search and professional networks (LinkedIn, Indeed, Glassdoor, company career pages, etc.) to find **credible and up-to-date** opportunities.  
+      - Only include positions that are active or recently updated.  
+      - Match opportunities to the user’s profile using keyword alignment, education level, and interest relevance.  
+      - For each relevant opening, provide the company name, position, location, role summary, and a verified link (if available).  
+      - Optionally, identify **relevant people** (HR managers, recruiters, or professionals in similar roles) who could be contacted for networking or mentorship.  
+      - Maintain an honest, informative, and empathetic tone — prioritizing relevance over quantity.  
+
+    **Data Integrity Guidelines:**  
+      - No speculative or unverified listings.  
+      - Include source URLs or identifiers for traceability.  
+      - If information cannot be verified, clearly mark it as “unverified” and exclude it by default unless user requests exploratory results.  
+      - Filter out expired, incomplete, or clickbait job listings.  
+
+  expected_output: >
+    A structured report containing current opportunities and professional contacts using these schemas:  
+
+    ```python
+    class CareerOutput(BaseModel):
+        openings: List[Dict[str, str]] = Field(
+            ...,
+            description="List of verified openings matching the user's background. Each item includes role, location, and summary."
+        )
+        contacts: Optional[List[Dict[str, str]]] = Field(
+            None,
+            description="List of relevant professionals (e.g., recruiters, alumni, or mentors) with short bios or LinkedIn links."
+        )
+
+    # Example Output:
+    {
+      "openings": [
+        {
+          "position": "Financial Analyst Intern",
+          "company": "KPMG Kenya",
+          "location": "Nairobi, Kenya",
+          "role_summary": "Assist the finance team in performing data analysis, preparing financial reports, and evaluating investment risks.",
+          "link": "https://kpmg.com/ke/en/careers/internships.html"
+        },
+        {
+          "position": "Data Science Fellow",
+          "company": "AI Kenya",
+          "location": "Remote",
+          "role_summary": "Participate in an 8-week intensive program focused on practical machine learning applications and mentorship."
+        }
+      ],
+      "contacts": [
+        {
+          "name": "Jane Mwangi",
+          "role": "HR Manager, Safaricom PLC",
+          "link": "https://www.linkedin.com/in/jane-mwangi"
+        },
+        {
+          "name": "Kevin Ouma",
+          "role": "Data Science Mentor at Zindi Africa",
+          "link": "https://www.linkedin.com/in/kevin-ouma"
+        }
+      ]
+    }
+    ```
+
+  config:
+    verify_sources: true
+    max_results: 10
+    include_contacts: true
+    allow_uncertain_entries: false
+    preferred_sources:
+      - LinkedIn
+      - Indeed
+      - Glassdoor
+      - Official company career pages
+      - Local career hubs (BrighterMonday, MyJobMag, Fuzu)
+  agent: career_agent
+  run_mode: independent
+
+
+presentation_task:
+  description: >
+    **Role:** Response Synthesis & Presentation Agent  
+    **Objective:** Refine and professionally present the combined outputs from other agents 
+    (main, event, professional, and career). Ensure coherence, stylistic consistency, and user-friendly presentation.  
+
+    **Behavior:**  
+      - Accept as input one or more structured outputs (in JSON or structured text) from the other agents.  
+      - Clean, reformat, and rewrite the text for:
+          - Grammar, punctuation, and clarity  
+          - Natural flow and readability  
+          - Elimination of redundancy or overlap  
+      - Maintain factual and semantic accuracy from the original outputs.  
+      - Use markdown or structured formatting (headings, bullet points, sections) for readability.  
+      - When multiple categories are present (events, professionals, career opportunities), organize the content under clear headings.  
+      - Ensure transitions between sections are smooth and that the tone matches Synq’s style — **youthful, polished, and professional.**
+
+    **Guidelines:**  
+      - Avoid robotic or repetitive phrasing.  
+      - If any section feels too long, summarize while retaining key insights.  
+      - Include brief introductory and closing sentences that make the entire response feel intentional and human.  
+      - Optionally highlight standout opportunities, trends, or insights.  
+
+  expected_output: >
+    A refined, ready-to-display response combining all agent outputs, structured as:
+    ```json
+    {
+      "summary": "Beautifully rewritten text for user display",
+      "sections": {
+        "Events": "Polished event summaries (if any)",
+        "Professionals": "Well-formatted list of people/companies with brief context",
+        "Career Opportunities": "Readable, bullet-listed job/internship results",
+        "Additional Insights": "Optional highlights, key takeaways, or next steps"
+      },
+      "metadata": {
+        "sources": ["event_agent", "professional_agent", "career_agent"],
+        "style": "professional, youthful, conversational"
+      }
+    }
+    ```
+
+  config:
+    input_format: "JSON or structured multi-agent text"
+    output_format: "Refined structured JSON + markdown summary"
+    ensure_grammar_check: true
+    remove_duplicates: true
+    unify_tone: true
+    max_length: 1200
+    fallback_strategy: "Return raw output if polishing fails"
+
+  agent: presentation_agent
+  run_mode: refinement
