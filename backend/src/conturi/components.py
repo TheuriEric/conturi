@@ -1,6 +1,10 @@
 import logging
 from langchain_chroma import Chroma
 from langchain_cohere import CohereEmbeddings
+from langchain_groq  import ChatGroq
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+import os
 from pathlib import Path
 from bs4 import BeautifulSoup
 from ddgs import DDGS
@@ -110,3 +114,35 @@ class ContentRetriever():
         except Exception as e:
             logger.error(f"Web Search Tool failed: {e}", exc_info=True)
             return f"Error searching the web: {e}"
+
+
+       
+async def router(user_query: str) -> str:
+    """Route queries intelligently between CrewAI or LangChain (general chat)."""
+    try:
+        router_llm = ChatGroq(
+            model=os.getenv("GROQ_MODEL"),
+            api_key=os.getenv("GROQ_API_KEY")
+        )
+        logger.info("Successfully connected to the router LLM")
+    except Exception as e:
+        logger.exception("Failed to connect to the router LLM")
+    router_prompt = ChatPromptTemplate.from_template("""
+    You are a routing expert. 
+    Decide whether to route the user query to 'crewai' (for content generation)
+    or 'langchain' (for general chat, reasoning, and conversation).
+
+    Respond with one word only: crewai or langchain.
+
+    User query: "{query}"
+    Response:
+    """)
+    router_chain = router_prompt | router_llm | StrOutputParser()
+    try:
+        logger.info("Determining route...")
+        route = await router_chain.ainvoke({"query": user_query})
+        logger.info(f"Routing conversation to {route}")
+        return route.strip().lower()
+    except Exception as e:
+        logger.exception("Router failed to route the conversation. prpceeding with langchain")
+        return "langchain"
