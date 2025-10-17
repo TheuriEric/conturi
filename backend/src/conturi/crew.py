@@ -3,28 +3,51 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.tools import tool
 from typing import List
-from .components import ContentRetriever, project_root, logger, AIModels
-
+from .components import ContentRetriever, project_root, logger, AIModels, SimpleTracker
+tracker = SimpleTracker()
 model = AIModels()
 content_retriever = ContentRetriever()
 
 @tool("rag_tool")
 def rag_tool(query: str) -> str:
-    """Retrieve relevant context from the internal knowledge base."""
+    """Retrieve relevant context from the internal knowledge base.
+    
+    LIMIT: Max 2 uses per task.
+    """
+    if not tracker.can_use('rag_tool', max_uses=2):
+        return "RAG tool limit reached. Continue with available information."
+    
+    tracker.use('rag_tool')
+    logger.info(f"RAG tool used ({tracker.count.get('rag_tool', 0)}/2)")
+    
     try:
-        logger.info("Accessed RAG tool")
         return content_retriever.rag_tool(query=query)
     except Exception as e:
-        logger.exception("Failed to connect to RAG tool")
+        logger.exception("RAG tool failed")
+        return "RAG tool unavailable."
 
 @tool("web_search_tool")
-def web_search_tool(query: str, max_results: int = 5) -> str:
-    """Search the web for relevant articles and return summarized results."""
+def web_search_tool(query: str, max_results: int = 3) -> str:
+    """Search the web for information. Returns readable summaries.
+    
+    LIMIT: Max 3 uses per task. Use strategically.
+    BEST PRACTICE: Include date/location in query (e.g., "marketing events NYC October 2025")
+    """
+    if not tracker.can_use('web_search_tool', max_uses=3):
+        return "Search limit reached (3/3). Work with information you have."
+    
+    tracker.use('web_search_tool')
+    remaining = 3 - tracker.count.get('web_search_tool', 0)
+    logger.info(f"Web search used ({tracker.count.get('web_search_tool', 0)}/3) - {remaining} remaining")
+    
     try:
-        logger.info("Successfully connected to the web search tool")
-        return content_retriever.web_search_tool(query, max_results)
+        result = content_retriever.web_search_tool(query, min(max_results, 3))
+        if remaining > 0:
+            result += f"\n\n[System: {remaining} searches remaining]"
+        return result
     except Exception as e:
-        logger.exception("Failed to connect to the web search tool")
+        logger.exception("Web search failed")
+        return "Web search unavailable."
 
 @CrewBase
 class SynqCrew():
@@ -56,32 +79,32 @@ class SynqCrew():
     @agent
     def main_agent(self) -> Agent:
         return Agent(config=self.agents_config["main_agent"],
-                     llm=model.crew_llm(),verbose=True)
+                     llm=model.crew_llm(),verbose=True, max_iter=2)
 
     @agent
     def event_agent(self) -> Agent:
         return Agent(config=self.agents_config["event_agent"],
                      tools=[web_search_tool, rag_tool],llm=model.crew_llm(),
-                       verbose=True)
+                       verbose=True, max_iter=3)
 
     @agent
     def professional_agent(self) -> Agent:
         return Agent(config=self.agents_config["professional_agent"],
                      tools=[web_search_tool, rag_tool],
                      llm=model.crew_llm(),
-                    verbose=True)
+                    verbose=True,max_iter=3)
 
     @agent
     def career_agent(self) -> Agent:
         return Agent(config=self.agents_config["career_agent"],
                      tools=[web_search_tool, rag_tool],
                      llm=model.crew_llm(),
-                    verbose=True)
+                    verbose=True, max_iter=3)
 
     @agent
     def presentation_agent(self) -> Agent:
         return Agent(config=self.agents_config["presentation_agent"],
-                     llm=model.crew_llm(), verbose=True)
+                     llm=model.crew_llm(), verbose=True, max_iter=1)
 
 
    
@@ -110,6 +133,7 @@ class SynqCrew():
         """Creates the Conturi crew"""
         try:
             logger.info("Building the Synq Crew")
+            tracker.reset()
             agents = [
                 self.main_agent(),
                 self.event_agent(),
@@ -129,6 +153,7 @@ class SynqCrew():
                 tasks=tasks, 
                 process=Process.sequential,
                 verbose=True,
+                max_rpm=15
             )
         except Exception as e:
             logger.exception("Failed to create Synq Crew")

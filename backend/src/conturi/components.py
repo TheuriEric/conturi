@@ -2,12 +2,14 @@ import logging
 from langchain_chroma import Chroma
 from langchain_cohere import CohereEmbeddings
 from langchain.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from .chat_models import IntentResponse
 import os
 from pathlib import Path
 from bs4 import BeautifulSoup
 from ddgs import DDGS
 from dotenv import load_dotenv
+from typing import Optional
 import requests
 import os
 import asyncio
@@ -52,7 +54,7 @@ class ContentRetriever():
         A tool to retrieve relevant context from the Chroma knowledge base."""
         try:
             logger.info(f"RAG Tool: Searching for documents related to the topic: '{query}'...")
-            retrieved_docs = knowledge_base.get_relevant_documents(query)
+            retrieved_docs = knowledge_base.invoke(query)
             context = "\n\n-------------\n\n".join([doc.page_content for doc in retrieved_docs])
             
             if not context:
@@ -65,7 +67,7 @@ class ContentRetriever():
             logger.error(f"RAG Tool: Error during retrieval - {e}", exc_info=True)
             return f"Error retrieving context from knowledge base: {e}. Please proceed without."
         
-    def web_search_tool(self,query: str, max_results: int = 5) -> str:
+    def web_search_tool(self,query: str, max_results: Optional[int] = 3) -> str:
         """
         Searches the web using DuckDuckGo and extracts readable content
         from top search results. Ideal for generating blog posts.
@@ -134,7 +136,7 @@ async def router(user_query: str) -> str:
         logger.info("Successfully connected to the router LLM")
     except Exception as e:
         logger.exception("Failed to connect to the router LLM")
-    router_prompt = ChatPromptTemplate.from_template(f"""
+    router_prompt = ChatPromptTemplate.from_template("""
     You are a routing expert for the Synq platform. Your job is to decide the immediate next step.
 
     System Capabilities: Synq can handle specialized tasks like **finding events, professional connections, or career opportunities** (Route: 'crewai'). All other queries, incomplete specialized requests, or conversational chat should go to the general chat handler (Route: 'langchain').
@@ -145,7 +147,7 @@ async def router(user_query: str) -> str:
 
     Respond with one word only: crewai or langchain.
 
-    User query: "{{query}}"
+    User query: {query}
     Response:
     """)
     router_chain = router_prompt | router_llm | StrOutputParser()
@@ -161,6 +163,20 @@ async def router(user_query: str) -> str:
     except Exception as e:
         logger.exception("Router failed to route the conversation. Proceeding with langchain")
         return "langchain"
+
+class SimpleTracker:
+    """Dead simple: just counts tool usage"""
+    def __init__(self):
+        self.count = {}
+    
+    def can_use(self, tool: str, max_uses: int = 3):
+        return self.count.get(tool, 0) < max_uses
+    
+    def use(self, tool: str):
+        self.count[tool] = self.count.get(tool, 0) + 1
+    
+    def reset(self):
+        self.count = {}
 
 
 class AIModels():
@@ -201,10 +217,10 @@ class AIModels():
         try:
             logger.info("Connecting to the CrewAI llm")
             return LLM(
-                model=os.getenv("CREWAI_MODEL"),
-                api_key=os.getenv("GROQ_API_KEY"),
+                model="gemini/gemini-2.5-pro",
+                api_key=os.getenv("GOOGLE_API_KEY"),
                 temperature=0.7
-            )
+                )
         except Exception as e:
             logger.exception("Failed to connect to the initial LLM")
             try:
@@ -222,9 +238,11 @@ class Assistant():
         self.retriver = ContentRetriever()
         self.general_llm = AIModels.general_llm()
         self.system_capabilities = SYSTEM_CAPABILITIES
+        self.parser = JsonOutputParser(pydantic_object=IntentResponse)
     
-    async def langchain(self,user_query: str, history: str):
+    async def langchain(self,user_query: str, history: str) -> IntentResponse:
         rag_content = await asyncio.to_thread(self.retriver.rag_tool, user_query)
+        format_instructions = self.parser.get_format_instructions()
         chat_template = ChatPromptTemplate.from_template(
             f"""
             ## 🤖 Persona: Synq General Assistant (The Intent Analyst)
@@ -245,16 +263,18 @@ class Assistant():
 
             ## 💬 Conversation Instructions
 
-            1.  **General Query Handling (Default):** If the user's query is purely conversational or informational, answer the question directly, intelligently, and politely. You **MUST** use the content provided under the **RAG content** section if it is relevant to the question (e.g., asking about Synq's purpose, features, or identity). If the content is empty or irrelevant (e.g., asking about world news), proceed to answer based on your general knowledge, following the **Graceful Guardrail** (Rule 5).
+            1.  **General Query Handling (Default):** If the query is purely conversational or informational, set 'action' to **'response'**. You MUST use the RAG content if relevant.
             2.  **Specialized Request Handling (The Pivot):**
-                * If the user implies a need for a specialized service, **DO NOT execute the request yet.**
-                * Check the **Synq System Knowledge** and **Conversation History** to see if all required information is present.
-                * If information is **MISSING**, pivot by asking **one or two concise, leading questions** to gather the specific, missing details.
-            3.  **Complete Request Handling (Final Action):** If the request is complete, **summarize the complete, ready-to-process request in a final sentence** and state that you are now passing this information to the specialized agents.
-            4.  **Agent Masking:** When signaling the handover, **NEVER** use internal names like `event_agent`. Use the human-readable service title (e.g., "**Event Discovery Curator**" or "**Professional Networking Analyst**").
-            5.  **Graceful Guardrail:** If the query is off-topic (not about Synq or its core services), answer it gracefully, but always follow your answer with a redirect back to Synq's core capabilities (Events, Careers, Networking).
+                * If the user implies a need for a specialized service, check if all required information (from Synq System Knowledge) is present.
+                * If information is MISSING, set 'action' to **'response'** and ask concise, leading questions.
+            3.  **Complete Request Handling (Final Action):** If the request is complete, set the 'action' field to **'handover'**. The 'message' must summarize the request and state that the task is being passed to the specialized agents.
+            4.  **Agent Masking:** Use the human-readable service title.
 
             ---
+            
+            ## 📤 Output Format Instructions
+            Your final output MUST be a JSON object that conforms to the schema below.
+            {{format_instructions}} <-- INJECTING THE JSON SCHEMA INSTRUCTIONS
 
             ## 📜 Conversation History
             {{history}}
@@ -266,10 +286,11 @@ class Assistant():
             {rag_content} 
             
             ---
-            **Your Response (Maintain Synq's youthful, professional, and clear tone):**
+            **Your Response (MUST be a valid JSON object):**
             """
         )
-        chain = chat_template | self.general_llm | StrOutputParser()
+        chain = chat_template | self.general_llm | self.parser
         return await chain.ainvoke({"history": history,
-                             "user_query": user_query})
+                             "user_query": user_query,
+                             "format_instructions": format_instructions})
     
