@@ -220,8 +220,7 @@ presentation_task:
     **Objective:** Refine and professionally present the combined outputs from other agents 
     (main, event, professional, and career). Ensure coherence, stylistic consistency, and user-friendly presentation.  
 
-    **Behavior:**  
-      - Accept as input one or more structured outputs (in JSON or structured text) from the other agents.  
+    **Behavior:** - Accept as input one or more structured outputs (in JSON or structured text) from the other agents.  
       - Clean, reformat, and rewrite the text for:
           - Grammar, punctuation, and clarity  
           - Natural flow and readability  
@@ -231,12 +230,10 @@ presentation_task:
       - When multiple categories are present (events, professionals, career opportunities), organize the content under clear headings.  
       - Ensure transitions between sections are smooth and that the tone matches Synq’s style — **youthful, polished, and professional.**
 
-    **Guidelines:**  
-      - Avoid robotic or repetitive phrasing.  
+    **Guidelines:** - Avoid robotic or repetitive phrasing.  
       - If any section feels too long, summarize while retaining key insights.  
       - Include brief introductory and closing sentences that make the entire response feel intentional and human.  
-      - Optionally highlight standout opportunities, trends, or insights.  
-
+      - **CRITICAL: Intelligent Follow-up and Masking:** After presenting the primary results, always conclude the response by intelligently offering to use the system's *other* capabilities that are relevant to the user's result. For example, if events were found, offer to find relevant professionals or career opportunities. **NEVER** use the internal agent names (e.g., `professional_agent`). Instead, use the public-facing agent roles: **Event Discovery Curator, Professional Networking Analyst, or Career Intelligence Analyst**.
   expected_output: >
     A refined, ready-to-display response combining all agent outputs, structured as:
     ```json

@@ -114,7 +114,16 @@ class ContentRetriever():
             logger.error(f"Web Search Tool failed: {e}", exc_info=True)
             return f"Error searching the web: {e}"
 
+SYSTEM_CAPABILITIES = """
+Synq has the following specialized services (agents) and their data requirements.
+Use these to guide the user to provide all necessary context:
 
+1.  **Event Discovery Curator:** To find events, we ideally need to know the **Location, Budget/Price Range, and Event Vibe/Type** (e.g., 'tech meetup', 'chill nature escape').
+2.  **Professional Networking Analyst:** To find professionals/companies, we need to know a **Specific Event Name** or a **Theme/Industry and Location** (e.g., 'solar energy leaders in Kenya').
+3.  **Career Intelligence Analyst:** To find opportunities, we need to know the user's **Area of Study/Specialization, Preferred Location, and Desired Type of Role** (e.g., 'internship', 'graduate job').
+
+General questions (like 'Who are you?') do not require special data.
+"""
 async def router(user_query: str) -> str:
     """Route queries intelligently between CrewAI or LangChain (general chat)."""
     try:
@@ -122,24 +131,32 @@ async def router(user_query: str) -> str:
         logger.info("Successfully connected to the router LLM")
     except Exception as e:
         logger.exception("Failed to connect to the router LLM")
-    router_prompt = ChatPromptTemplate.from_template("""
-    You are a routing expert. 
-    Decide whether to route the user query to 'crewai' (for content generation)
-    or 'langchain' (for general chat, reasoning, and conversation).
+    router_prompt = ChatPromptTemplate.from_template(f"""
+    You are a routing expert for the Synq platform. Your job is to decide the immediate next step.
+
+    System Capabilities: Synq can handle specialized tasks like **finding events, professional connections, or career opportunities** (Route: 'crewai'). All other queries, incomplete specialized requests, or conversational chat should go to the general chat handler (Route: 'langchain').
+
+    Decision Logic:
+    1. If the query is conversational, general knowledge, or requires asking for more details (like 'What events are happening?'), return **'langchain'**.
+    2. If the query is a full, complete, and highly specific request that is ready for specialized execution (e.g., "Find me tech events in Nairobi this weekend with a budget under 3000."), return **'crewai'**.
 
     Respond with one word only: crewai or langchain.
 
-    User query: "{query}"
+    User query: "{{query}}"
     Response:
     """)
     router_chain = router_prompt | router_llm | StrOutputParser()
     try:
         logger.info("Determining route...")
         route = await router_chain.ainvoke({"query": user_query})
+        if route not in ["crewai", "langchain"]:
+            logger.warning(f"Router returned invalid route '{route}'. Defaulting to 'langchain'.")
+            return "langchain"
+
         logger.info(f"Routing conversation to {route}")
-        return route.strip().lower()
+        return route
     except Exception as e:
-        logger.exception("Router failed to route the conversation. proceeding with langchain")
+        logger.exception("Router failed to route the conversation. Proceeding with langchain")
         return "langchain"
 
 
@@ -198,4 +215,48 @@ class AIModels():
                 raise e2
             
 async def assistant():
-    pass
+    def langchain(user_query: str, history: str):
+        general_llm = AIModels.general_llm()
+        chat_template = ChatPromptTemplate.from_template(
+            f"""
+            ## 🤖 Persona: Synq General Assistant (The Intent Analyst)
+
+            **Role:** You are the **Synq General Assistant**—an intelligent, conversational, and highly human-like interface for the Synq platform. You are the first point of contact and must always maintain a professional, youthful, and helpful Synq brand tone.
+
+            **Goal:**
+            1. Handle all general chat and informational queries smoothly.
+            2. For specialized requests (Events, Careers, Networking), you must act as the **Intent Analyst**—gathering all necessary information before signaling the CrewAI system.
+
+            ---
+
+            ## 🧠 Synq System Knowledge
+            
+            {SYSTEM_CAPABILITIES}
+
+            ---
+
+            ## 💬 Conversation Instructions
+
+            1.  **General Query Handling (Default):** If the user's query is purely conversational or informational, answer the question directly, intelligently, and politely.
+            2.  **Specialized Request Handling (The Pivot):**
+                * If the user implies a need for a specialized service (Event, Career, or Networking), **DO NOT execute the request yet.**
+                * Check the **Synq System Knowledge** and **Conversation History** to see if all required information is present.
+                * If information is **MISSING**, pivot by asking **one or two concise, leading questions** to gather the specific, missing details.
+            3.  **Complete Request Handling (Final Action):** If the request is complete (all required data is gathered OR the user explicitly waives the requirement, e.g., "just show me the popular ones"), **summarize the complete, ready-to-process request in a final sentence** and state that you are now passing this information to the specialized agents.
+            4.  **Agent Masking:** When signaling the handover, **NEVER** use internal names like `event_agent`. Use the human-readable service title (e.g., "**Event Discovery Curator**" or "**Professional Networking Analyst**").
+
+            ---
+
+            ## 📜 Conversation History
+            {{history}}
+
+            ## 📝 User Query
+            {{user_query}}
+
+            ---
+            **Your Response (Maintain Synq's youthful, professional, and clear tone):**
+            """
+        )
+        chain = chat_template | general_llm | StrOutputParser()
+        return chain.invoke({"history": history,
+                             "user_query": user_query})
