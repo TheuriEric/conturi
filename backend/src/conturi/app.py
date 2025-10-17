@@ -1,8 +1,8 @@
 from dotenv import load_dotenv
-from .components import logger, router
+from .components import logger, router, Assistant
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from crew import SynqCrew
+from .crew import SynqCrew
 
 
 
@@ -14,6 +14,11 @@ app = FastAPI(
     description="Backend for Synq",
     version="1.0.0",  
 )
+try:
+    assistant = Assistant()
+    logger.info("Initialized assistants")
+except Exception as e:
+    logger.exception("Failed to initialize an assistant")
 try:
     crew_instance = SynqCrew().crew()
     logger.info("Successfully initialized crew instance")
@@ -40,7 +45,8 @@ async def synq(query: str):
     route = await router(user_query=query)
     if route == "langchain":
         logger.info("Routing conversation to langchain")
-        response = True
+        response = await assistant.langchain(user_query=query,history="No previous history")
+        return response
     elif route == "crewai":
         logger.info("Routing conversation to CrewAI")
     else:

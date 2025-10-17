@@ -7,9 +7,12 @@ import os
 from pathlib import Path
 from bs4 import BeautifulSoup
 from ddgs import DDGS
+from dotenv import load_dotenv
 import requests
 import os
+import asyncio
 
+load_dotenv()
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -214,9 +217,14 @@ class AIModels():
                 logger.exception("Fallback Gemini LLM also failed")
                 raise e2
             
-async def assistant():
-    def langchain(user_query: str, history: str):
-        general_llm = AIModels.general_llm()
+class Assistant():
+    def __init__(self):
+        self.retriver = ContentRetriever()
+        self.general_llm = AIModels.general_llm()
+        self.system_capabilities = SYSTEM_CAPABILITIES
+    
+    async def langchain(self,user_query: str, history: str):
+        rag_content = await asyncio.to_thread(self.retriver.rag_tool, user_query)
         chat_template = ChatPromptTemplate.from_template(
             f"""
             ## 🤖 Persona: Synq General Assistant (The Intent Analyst)
@@ -237,13 +245,14 @@ async def assistant():
 
             ## 💬 Conversation Instructions
 
-            1.  **General Query Handling (Default):** If the user's query is purely conversational or informational, answer the question directly, intelligently, and politely.
+            1.  **General Query Handling (Default):** If the user's query is purely conversational or informational, answer the question directly, intelligently, and politely. You **MUST** use the content provided under the **RAG content** section if it is relevant to the question (e.g., asking about Synq's purpose, features, or identity). If the content is empty or irrelevant (e.g., asking about world news), proceed to answer based on your general knowledge, following the **Graceful Guardrail** (Rule 5).
             2.  **Specialized Request Handling (The Pivot):**
-                * If the user implies a need for a specialized service (Event, Career, or Networking), **DO NOT execute the request yet.**
+                * If the user implies a need for a specialized service, **DO NOT execute the request yet.**
                 * Check the **Synq System Knowledge** and **Conversation History** to see if all required information is present.
                 * If information is **MISSING**, pivot by asking **one or two concise, leading questions** to gather the specific, missing details.
-            3.  **Complete Request Handling (Final Action):** If the request is complete (all required data is gathered OR the user explicitly waives the requirement, e.g., "just show me the popular ones"), **summarize the complete, ready-to-process request in a final sentence** and state that you are now passing this information to the specialized agents.
+            3.  **Complete Request Handling (Final Action):** If the request is complete, **summarize the complete, ready-to-process request in a final sentence** and state that you are now passing this information to the specialized agents.
             4.  **Agent Masking:** When signaling the handover, **NEVER** use internal names like `event_agent`. Use the human-readable service title (e.g., "**Event Discovery Curator**" or "**Professional Networking Analyst**").
+            5.  **Graceful Guardrail:** If the query is off-topic (not about Synq or its core services), answer it gracefully, but always follow your answer with a redirect back to Synq's core capabilities (Events, Careers, Networking).
 
             ---
 
@@ -253,10 +262,14 @@ async def assistant():
             ## 📝 User Query
             {{user_query}}
 
+            ## RAG content
+            {rag_content} 
+            
             ---
             **Your Response (Maintain Synq's youthful, professional, and clear tone):**
             """
         )
-        chain = chat_template | general_llm | StrOutputParser()
-        return chain.invoke({"history": history,
+        chain = chat_template | self.general_llm | StrOutputParser()
+        return await chain.ainvoke({"history": history,
                              "user_query": user_query})
+    

@@ -33,7 +33,8 @@ class SynqCrew():
         import os
         import yaml
 
-        config_dir = f"{project_root}/config"
+        config_dir = f"{project_root}/src/conturi/config"
+
 
         try:
             with open(os.path.join(config_dir, "agents.yaml"), "r") as f:
