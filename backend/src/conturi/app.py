@@ -2,7 +2,10 @@ from dotenv import load_dotenv
 from .components import logger, router, Assistant
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from .crew import SynqCrew
+import os
+import jwt
 
 
 

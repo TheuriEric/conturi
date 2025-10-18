@@ -1,8 +1,11 @@
 import logging
 from langchain_chroma import Chroma
 from langchain_cohere import CohereEmbeddings
-from langchain.prompts import ChatPromptTemplate
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain.memory import ConversationBufferMemory
 from .chat_models import IntentResponse
 import os
 from pathlib import Path
@@ -239,12 +242,9 @@ class Assistant():
         self.general_llm = AIModels.general_llm()
         self.system_capabilities = SYSTEM_CAPABILITIES
         self.parser = JsonOutputParser(pydantic_object=IntentResponse)
-    
-    async def langchain(self,user_query: str, history: str) -> IntentResponse:
-        rag_content = await asyncio.to_thread(self.retriver.rag_tool, user_query)
-        format_instructions = self.parser.get_format_instructions()
-        chat_template = ChatPromptTemplate.from_template(
-            f"""
+        self.memory = ConversationBufferMemory(memory_key="history", input_key="user_query", return_messages=True)
+        chat_template = ChatPromptTemplate.from_messages([
+            ("system", f"""
             ## 🤖 Persona: Synq General Assistant (The Intent Analyst)
 
             **Role:** You are the **Synq General Assistant**—an intelligent, conversational, and highly human-like interface for the Synq platform. You are the first point of contact and must always maintain a professional, youthful, and helpful Synq brand tone.
@@ -257,40 +257,60 @@ class Assistant():
 
             ## 🧠 Synq System Knowledge
             
-            {SYSTEM_CAPABILITIES}
+            {self.system_capabilities}
 
             ---
 
             ## 💬 Conversation Instructions
 
-            1.  **General Query Handling (Default):** If the query is purely conversational or informational, set 'action' to **'response'**. You MUST use the RAG content if relevant.
-            2.  **Specialized Request Handling (The Pivot):**
-                * If the user implies a need for a specialized service, check if all required information (from Synq System Knowledge) is present.
+            1. **Context Awareness:** Review the conversation history below and the RAG content provided to inform your response.
+            2.  **General Query Handling (Default):** If the query is purely conversational or informational, set 'action' to **'response'**. You MUST use the RAG content if relevant.
+            3.  **Specialized Request Handling (The Pivot):**
+                * If the user implies a need for a specialized service, check both: a) The Synq System Knowledge for required info and b) The Conversation History for information already provided.
                 * If information is MISSING, set 'action' to **'response'** and ask concise, leading questions.
-            3.  **Complete Request Handling (Final Action):** If the request is complete, set the 'action' field to **'handover'**. The 'message' must summarize the request and state that the task is being passed to the specialized agents.
-            4.  **Agent Masking:** Use the human-readable service title.
+            4.  **Complete Request Handling (Final Action):** If the request is complete, set the 'action' field to **'handover'**. The 'message' must summarize the request and state that the task is being passed to the specialized agents.
+            5.  **Agent Masking:** Use the human-readable service title.
 
             ---
             
             ## 📤 Output Format Instructions
             Your final output MUST be a JSON object that conforms to the schema below.
-            {{format_instructions}} <-- INJECTING THE JSON SCHEMA INSTRUCTIONS
-
-            ## 📜 Conversation History
-            {{history}}
-
-            ## 📝 User Query
-            {{user_query}}
+            {{format_instructions}}
 
             ## RAG content
-            {rag_content} 
+            {{rag_content}} 
             
             ---
-            **Your Response (MUST be a valid JSON object):**
-            """
+            """),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{user_query}"),
+        ])
+        full_processing_chain = RunnableParallel(
+            rag_content=lambda x: asyncio.run(asyncio.to_thread(self.retriver.rag_tool, x["user_query"])),
+            user_query=RunnablePassthrough(),
+            format_instructions=lambda x: self.parser.get_format_instructions(),
         )
-        chain = chat_template | self.general_llm | self.parser
-        return await chain.ainvoke({"history": history,
-                             "user_query": user_query,
-                             "format_instructions": format_instructions})
+        base_chain = full_processing_chain | chat_template | self.general_llm | self.parser
+        self.chain_with_history = RunnableWithMessageHistory(
+            base_chain,
+            lambda session_id: self.memory, 
+            input_messages_key="user_query",
+            history_messages_key="history",
+        )
+
+        
     
+    async def langchain(self, user_query: str, session_id: str = "main_session") -> IntentResponse:
+        """
+        Handles the core LangChain conversation. Executes the full LCEL pipeline (RAG, Memory, LLM) 
+        in a single, clean asynchronous call.
+        """
+        logger.info(f"Invoking main chain for query: {user_query} with Session ID: {session_id}")
+        
+        return await self.chain_with_history.ainvoke(
+            {"user_query": user_query},
+            config={"configurable": {"session_id": session_id}}
+        )
+    
+class Memory():
+    pass
