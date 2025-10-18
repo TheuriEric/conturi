@@ -1,27 +1,9 @@
 main_task:
   description: >
-    **Role:** Main Orchestration Agent  
-    **Objective:** Act as the intelligent decision-maker that interprets user intent, determines which specialized agent(s)
-    (event_agent, professional_agent, or career_agent) should be engaged, and coordinates their execution.  
-
-    **Behavior:**  
-      - Analyze the user’s query or conversation to determine what they’re seeking:
-        - If the user is asking about events → delegate to `event_agent`.
-        - If the user wants to know about attendees, professionals, or organizations → include `professional_agent`.
-        - If the user requests job, internship, or career opportunities → delegate to `career_agent`.
-        - If the user asks for multiple types of information (e.g., events + professionals), delegate to all relevant agents.
-      - Before invoking any agent, verify that all required user context is available (location, interests, field of study, etc.).
-      - If context is incomplete, ask concise clarification questions before delegation.
-      - Once tasks are executed, gather and synthesize all agent outputs into one cohesive response.
-
-    **Guidelines:**  
-      - Always prioritize **accuracy and user intent** over volume of information.  
-      - Maintain a **unified tone** that reflects the Synq brand: professional, youthful, and conversational.  
-      - Use **clear reasoning** when deciding which agents to activate and why.  
-      - Ensure **consistency** in formatting and schema alignment across all responses.  
-      - When multiple agents are invoked, merge their outputs naturally (e.g., “Here are exciting events and the professionals attending them”).  
-      - Avoid repetition or contradiction between agent outputs.  
-
+    **Role**: Main Orchestration Agent  
+    **Objective**: Act as the intelligent decision-maker that interprets **user_input** (the raw query), determines the primary intent (events, career, networking, or mixed), 
+    and orchestrates the necessary agent calls. The main agent passes the original 
+    user_input ({user_query}) to the required independent agents.
   expected_output: >
     A structured JSON response detailing:
     ```json
@@ -29,10 +11,11 @@ main_task:
       "detected_intent": "events" | "career" | "networking" | "mixed",
       "required_agents": ["event_agent", "professional_agent"],
       "missing_information": ["location", "interests"],
-      "final_compiled_output": "A unified response combining outputs from the relevant agents, with tone consistency and professional formatting."
+      "final_compiled_output": "A unified response combining outputs..."
     }
     ```
-
+  inputs:
+    - user_query
   config:
     enable_context_check: true
     allow_multi_agent_calls: true
@@ -43,10 +26,13 @@ main_task:
   agent: main_agent
   run_mode: orchestration
 
+
 event_task:
   description: >
     **Role:** Event Agent  
     **Objective:** Find and curate events that align with the user’s preferences (location, price range, and experience type).  
+    **This agent is executed when the main_agent detects an 'events' or 'mixed' 
+    intent, receiving the original user query ({user_query}) for context.
     **Behavior:** Use web_search_tool or integrated APIs to explore recent and upcoming events that match what the user wants to experience.  
     **Guidelines:**  
       - Focus on verified, high-quality, and interesting events relevant to the user’s input.  
@@ -68,7 +54,10 @@ event_task:
 
 professional_task:
   description: >
-    **Role:** Professional Agent  
+    **Role:** Professional Agent
+    **This agent is executed when the main_agent 
+    detects a 'networking' or 'mixed' intent, receiving the original user query 
+    ({user_query}) for theme analysis.
     **Objective:** Analyze information about a given event or event theme to identify:
       - People confirmed or likely to attend  
       - Individuals who have shown interest in the event or topic  
@@ -131,6 +120,9 @@ career_task:
     **Role:** Career Intelligence Agent  
     **Objective:** Use user-provided profile information to find and summarize verified
     job, internship, and graduate opportunities that fit their background, interests, and goals.  
+    **This agent is executed when 
+    the main_agent detects a 'career' or 'mixed' intent, receiving the original 
+    user query ({user_query}) for background and interest alignment.
 
     **User input examples:**  
       - Name, age, year of study  

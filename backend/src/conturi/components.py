@@ -67,7 +67,7 @@ class ContentRetriever():
             logger.error(f"RAG Tool: Error during retrieval - {e}", exc_info=True)
             return f"Error retrieving context from knowledge base: {e}. Please proceed without."
         
-    def web_search_tool(self,query: str, max_results: Optional[int] = 3) -> str:
+    def web_search_tool(self,query: str) -> str:
         """
         Searches the web using DuckDuckGo and extracts readable content
         from top search results. Ideal for generating blog posts.
@@ -77,7 +77,7 @@ class ContentRetriever():
             results_text = ""
 
             with DDGS() as ddgs:
-                results = [r for r in ddgs.text(query, max_results=max_results)]
+                results = [r for r in ddgs.text(query)]
 
             if not results:
                 return "No results found for your query."

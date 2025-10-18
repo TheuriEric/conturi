@@ -54,7 +54,7 @@ async def synq(query: str = Body(..., embed=True)):
             action = intent_response_obj.get("action", "").lower()
             if action == "handover" and crew_instance:
                     logger.info("Assistant signaled HANDOVER (Structured). Executing CrewAI...")
-                    crew_result = crew_instance.kickoff(inputs={'topic': f"{PLACEHOLDER_HISTORY}\nUser Query: {query}"})
+                    crew_result = crew_instance.kickoff(inputs={"user_query": query})
                     final_response = crew_result
                     status = "executed"
             else:
@@ -72,7 +72,7 @@ async def synq(query: str = Body(..., embed=True)):
             status = "error"
         else:
             try:
-                crew_result = crew_instance.kickoff(inputs={'topic': f"{PLACEHOLDER_HISTORY}\nUser Query: {query}"})
+                crew_result = crew_instance.kickoff(inputs={"user_query":query})
                 final_response = crew_result
                 status = "executed"
             except Exception as e:

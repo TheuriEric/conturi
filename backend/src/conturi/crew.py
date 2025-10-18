@@ -27,7 +27,7 @@ def rag_tool(query: str) -> str:
         return "RAG tool unavailable."
 
 @tool("web_search_tool")
-def web_search_tool(query: str, max_results: int = 3) -> str:
+def web_search_tool(query: str) -> str:
     """Search the web for information. Returns readable summaries.
     
     LIMIT: Max 3 uses per task. Use strategically.
@@ -41,7 +41,7 @@ def web_search_tool(query: str, max_results: int = 3) -> str:
     logger.info(f"Web search used ({tracker.count.get('web_search_tool', 0)}/3) - {remaining} remaining")
     
     try:
-        result = content_retriever.web_search_tool(query, min(max_results, 3))
+        result = content_retriever.web_search_tool(query)
         if remaining > 0:
             result += f"\n\n[System: {remaining} searches remaining]"
         return result
