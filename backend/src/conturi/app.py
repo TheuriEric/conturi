@@ -6,6 +6,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from .crew import SynqCrew
 import os
 import jwt
+from mcp.server.fastmcp import FastMCP
+mcp = FastMCP("Synq AI")
 
 
 
