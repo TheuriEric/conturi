@@ -402,7 +402,8 @@ class Assistant():
         try:
             response = await self.chain_with_history.ainvoke(
                 {"user_query": user_query},
-                config={"configurable": {"session_id": session_id}},
+                config={"configurable": {"session_id": session_id},
+                        "callbacks":[]},
             )
             logger.info("LangChain response generated successfully.")
             return response
