@@ -45,15 +45,14 @@ async def root():
 
 @app.post("/chat")
 async def synq(query: str = Body(..., embed=True)):
-    PLACEHOLDER_HISTORY = "No previous conversation history."
     final_response = "No response generated"
     status = "Error"
+    session_id = "trial"
     route = await router(user_query=query)
     if route == "langchain":
         logger.info("Routing conversation to langchain")
         try:
-            intent_response_obj:dict = await assistant.langchain(user_query=query,
-                                                            history=PLACEHOLDER_HISTORY)
+            intent_response_obj:dict = await assistant.langchain(user_query=query, session_id=session_id)
             action = intent_response_obj.get("action", "").lower()
             if action == "handover" and crew_instance:
                     logger.info("Assistant signaled HANDOVER (Structured). Executing CrewAI...")

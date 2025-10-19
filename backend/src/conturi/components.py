@@ -5,6 +5,7 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain.memory import ConversationBufferMemory
 from .chat_models import IntentResponse
 import os
@@ -235,14 +236,19 @@ class AIModels():
             except Exception as e2:
                 logger.exception("Fallback Gemini LLM also failed")
                 raise e2
-            
+
+from langchain_core.runnables import RunnableMap
+
+
 class Assistant():
     def __init__(self):
         self.retriver = ContentRetriever()
         self.general_llm = AIModels.general_llm()
         self.system_capabilities = SYSTEM_CAPABILITIES
         self.parser = JsonOutputParser(pydantic_object=IntentResponse)
-        self.memory = ConversationBufferMemory(memory_key="history", input_key="user_query", return_messages=True)
+        self.session_histories = {}
+        
+
         chat_template = ChatPromptTemplate.from_messages([
             ("system", f"""
             ## 🤖 Persona: Synq General Assistant (The Intent Analyst)
@@ -285,32 +291,39 @@ class Assistant():
             MessagesPlaceholder(variable_name="history"),
             ("human", "{user_query}"),
         ])
-        full_processing_chain = RunnableParallel(
-            rag_content=lambda x: asyncio.run(asyncio.to_thread(self.retriver.rag_tool, x["user_query"])),
-            user_query=RunnablePassthrough(),
-            format_instructions=lambda x: self.parser.get_format_instructions(),
-        )
-        base_chain = full_processing_chain | chat_template | self.general_llm | self.parser
+        base_chain = RunnableMap({
+    "rag_content": lambda x: self.retriver.rag_tool(x["user_query"]),
+    "user_query": RunnablePassthrough(),
+    "format_instructions": lambda x: self.parser.get_format_instructions(),
+    "history": lambda x: x.get("history", []),  
+}) | chat_template | self.general_llm | self.parser
+        def get_memory(session_id: str) -> InMemoryChatMessageHistory:
+            if session_id not in self.session_histories:
+                self.session_histories[session_id] = InMemoryChatMessageHistory()
+            return self.session_histories[session_id]
+        
         self.chain_with_history = RunnableWithMessageHistory(
             base_chain,
-            lambda session_id: self.memory, 
+            get_memory,
             input_messages_key="user_query",
             history_messages_key="history",
         )
 
         
     
-    async def langchain(self, user_query: str, session_id: str = "main_session") -> IntentResponse:
+    async def langchain(self, user_query: str, session_id: str = "trial"):
         """
-        Handles the core LangChain conversation. Executes the full LCEL pipeline (RAG, Memory, LLM) 
-        in a single, clean asynchronous call.
+        Handles the main LangChain conversation for Synq general chat.
         """
         logger.info(f"Invoking main chain for query: {user_query} with Session ID: {session_id}")
-        
-        return await self.chain_with_history.ainvoke(
-            {"user_query": user_query},
-            config={"configurable": {"session_id": session_id}}
-        )
-    
-class Memory():
-    pass
+        try:
+            response = await self.chain_with_history.ainvoke(
+                {"user_query": user_query},
+                config={"configurable": {"session_id": session_id}},
+            )
+            logger.info("LangChain response generated successfully.")
+            return response
+        except Exception as e:
+            logger.error("Error in Assistant.langchain", exc_info=True)
+            raise e
+
