@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synq - Your Career Companion</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <nav>
+            <div class="logo">Synq</div>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+            <button class="cta-button">Get Started</button>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Your Career Companion</h1>
+        <p>Connect with industry professionals, discover career opportunities, and attend events that matter to your future.</p>
+        <div class="hero-buttons">
+            <button class="btn-primary">Start Chatting</button>
+            <button class="btn-secondary">Learn More</button>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="features-container">
+            <h2 class="section-title">What Synq Offers</h2>
+            <p class="section-subtitle">Everything you need to accelerate your career</p>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Find Events</h3>
+                    <p>Discover professional events, conferences, and networking opportunities tailored to your industry and interests.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3>Connect with Professionals</h3>
+                    <p>Meet experienced professionals in your field who can mentor you and provide valuable career insights.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💼</div>
+                    <h3>Job Opportunities</h3>
+                    <p>Get personalized job recommendations and career openings that match your skills and aspirations.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works" id="how-it-works">
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Three simple steps to jumpstart your career</p>
+        <div class="steps-grid">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Chat with Synq</h3>
+                <p>Open the chat and tell us about your career goals and interests.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>Get Personalized Matches</h3>
+                <p>Receive curated recommendations for events, professionals, and job opportunities.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Take Action</h3>
+                <p>Connect, attend, and apply to opportunities that align with your career path.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section" id="contact">
+        <h2>Ready to Transform Your Career?</h2>
+        <p>Start chatting with Synq today and unlock your professional potential.</p>
+        <button class="btn-primary">Open Chat</button>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>About Synq</h4>
+                <p>Synq is your AI-powered career companion, helping students and recent graduates navigate their professional journey.</p>
+            </div>
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <ul>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#how-it-works">How It Works</a></li>
+                    <li><a href="#">Pricing</a></li>
+                    <li><a href="#">Blog</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Contact</h4>
+                <ul>
+                    <li><a href="mailto:hello@synq.com">hello@synq.com</a></li>
+                    <li><a href="#">Twitter</a></li>
+                    <li><a href="#">LinkedIn</a></li>
+                    <li><a href="#">Discord</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Synq. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Chatbot Widget -->
+    <div class="chatbot-widget">
+        <button class="chat-button" id="chatButton">💬</button>
+        <div class="chat-modal" id="chatModal">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <h2>Synq Chat</h2>
+                    <button class="close-button" id="closeChat">&times;</button>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message bot">
+                        <div class="message-content">Hi! I'm Synq. I'm here to help you find events, connect with professionals, and discover career opportunities. What are you interested in?</div>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" class="chat-input" id="chatInput" placeholder="Type your message...">
+                    <button class="send-button" id="sendButton">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
