@@ -362,7 +362,7 @@ class Assistant():
                 * If information is MISSING, set 'action' to **'response'** and ask concise, leading questions.
             4.  **Complete Request Handling (Final Action):** If the request is complete, set the 'action' field to **'handover'**. The 'message' must summarize the request and state that the task is being passed to the specialized agents. The 'user_request' should be a summary of the user's complete request, in first person...If the user is requesting for a service, you should summarize in a well formatted way for example: 
             - "I am looking for tech events in Nairobi that are taking place this week and the weekend and I do not have a specific budget range." 
-            - "I am looking for entry-level accounting opportunities in Nairobi or even remote.
+            - "I am looking for entry-level accounting opportunities in Nairobi or even remote. If there is no final summary, just write "No final summary"
             5.  **Agent Masking:** Use the human-readable service title.
 
             ---
