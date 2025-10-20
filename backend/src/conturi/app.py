@@ -84,7 +84,10 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
         orchestration_result = orchestration_crew.kickoff()
         import json
         result_str = str(orchestration_result)
-        router_output = json.loads(result_str)
+        router_output = extract_json(result_str)
+        if not router_output:
+            logger.error(f"Main Orchestration Agent output was not valid JSON:\n{result_str}")
+            return "An error occurred during Main Agent router. Please try again later."
         required_agents: List[str] = router_output.get("required_agents", [])
     except Exception as e:
         logger.error(f"Main Orchestration Agent failed: {e}")
@@ -118,7 +121,6 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
     presentation_agent = agent_task_map["presentation_agent"]["agent"]
     presentation_task = agent_task_map["presentation_agent"]["task"]
     
-    # 🔥 FIX: Ensure presentation task config is initialized safely 🔥
     if presentation_task.config is None:
         presentation_task.config = {}
     if "description" not in presentation_task.config:
@@ -145,6 +147,26 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
     
     return final_result
 
+import re
+
+def extract_json(text: str) -> dict:
+    """
+    Extracts and parses the first valid JSON object found in a text.
+    Returns {} if no valid JSON is found.
+    """
+    try:
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+            return json.loads(json_str)
+        else:
+            logger.warning("No valid JSON found in text output.")
+            return {}
+    except Exception as e:
+        logger.error(f"Failed to parse JSON: {e}")
+        return {}
+
+
 @app.get("/")
 async def root():
     return {"Message": "Visit /docs"}
@@ -160,6 +182,7 @@ async def synq(query: str = Body(..., embed=True)):
         logger.info("Routing conversation to langchain")
         try:
             intent_response_obj:dict = await assistant.langchain(user_query=query, session_id=session_id)
+            print(f"Output from LLM: {intent_response_obj}")
             action = intent_response_obj.get("action", "").lower()
             summary = intent_response_obj.get("user_request", "").lower()
             if action == "handover" and crew_instance:
