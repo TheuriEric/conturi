@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 from ddgs import DDGS
 from dotenv import load_dotenv
 from typing import Optional
+from upstash_redis import Redis
 import requests
 import os
 import asyncio
@@ -23,6 +24,8 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+redis = Redis(url=os.getenv("UPSTASH_REDIS_REST_URL"), token=os.getenv("UPSTASH_REDIS_REST_TOKEN"))
+
 
 try:
     project_root = Path(__file__).resolve().parent.parent.parent
@@ -238,7 +241,90 @@ class AIModels():
                 raise e2
 
 from langchain_core.runnables import RunnableMap
+import json
+from langchain.schema import BaseMessage, HumanMessage, AIMessage
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain.memory import ConversationBufferMemory
+from langchain.schema import BaseMessage, HumanMessage, AIMessage
+MESSAGE_EXPIRY_SECONDS = 86400
 
+class RedisChatMemory:
+    """Persist chat sessions in Redis for long-term memory."""
+    
+    def __init__(self, session_id: str, session_expiry_seconds: int = MESSAGE_EXPIRY_SECONDS): 
+        self.session_id = session_id # Store the session_id
+        self.expiry = session_expiry_seconds
+
+    def _get_messages_sync(self) -> list[BaseMessage]:
+        """Synchronous message loading logic (for internal use and sync chains)."""
+        raw = redis.get(self.session_id)
+        if not raw:
+            return []
+        try:
+            messages_data = json.loads(raw)
+            messages = []
+            for m in messages_data:
+                if m["type"] == "human":
+                    messages.append(HumanMessage(content=m["content"]))
+                else:
+                    messages.append(AIMessage(content=m["content"]))
+            return messages
+        except Exception as e:
+            logger.warning(f"Failed to parse Redis history for session {self.session_id}: {e}")
+            return []
+            
+    def _save_messages_sync(self, messages: list[BaseMessage]):
+        """Synchronous message saving logic (for internal use and sync chains)."""
+        try:
+            serialized = []
+            for m in messages:
+                msg_type = "human" if isinstance(m, HumanMessage) else "ai"
+                serialized.append({"type": msg_type, "content": m.content})
+            redis.set(self.session_id, json.dumps(serialized), ex=self.expiry)
+        except Exception as e:
+            logger.error(f"Failed to save Redis history for session {self.session_id}: {e}")
+    
+    @property
+    def messages(self) -> list[BaseMessage]: 
+        """Load conversation history synchronously (required property)."""
+        return self._get_messages_sync()
+    
+    def add_user_message(self, message: str) -> None:
+        """Add a human message synchronously."""
+        current_messages = self._get_messages_sync()
+        current_messages.append(HumanMessage(content=message))
+        self._save_messages_sync(current_messages)
+
+    def add_ai_message(self, message: str) -> None:
+        """Add an AI message synchronously."""
+        current_messages = self._get_messages_sync()
+        current_messages.append(AIMessage(content=message))
+        self._save_messages_sync(current_messages)
+
+    def clear(self) -> None:
+        """Clear all messages synchronously."""
+        redis.delete(self.session_id)
+
+    # --- REQUIRED ASYNCHRONOUS METHODS (for ainvoke compatibility) ---
+    async def aget_messages(self) -> list[BaseMessage]:
+        """Load conversation history asynchronously (REQUIRED by ainvoke)."""
+        return await asyncio.to_thread(self._get_messages_sync) # <-- Use asyncio.to_thread
+
+    async def aadd_user_message(self, message: str) -> None:
+        """Add a human message asynchronously (REQUIRED by ainvoke)."""
+        current_messages = await self.aget_messages()
+        current_messages.append(HumanMessage(content=message))
+        await asyncio.to_thread(self._save_messages_sync, current_messages) # <-- Use asyncio.to_thread
+
+    async def aadd_ai_message(self, message: str) -> None:
+        """Add an AI message asynchronously (REQUIRED by ainvoke)."""
+        current_messages = await self.aget_messages()
+        current_messages.append(AIMessage(content=message))
+        await asyncio.to_thread(self._save_messages_sync, current_messages) # <-- Use asyncio.to_thread
+    
+    async def aclear(self) -> None:
+        """Clear all messages asynchronously."""
+        await asyncio.to_thread(self.clear)
 
 class Assistant():
     def __init__(self):
@@ -246,7 +332,6 @@ class Assistant():
         self.general_llm = AIModels.general_llm()
         self.system_capabilities = SYSTEM_CAPABILITIES
         self.parser = JsonOutputParser(pydantic_object=IntentResponse)
-        self.session_histories = {}
         
 
         chat_template = ChatPromptTemplate.from_messages([
@@ -297,14 +382,12 @@ class Assistant():
     "format_instructions": lambda x: self.parser.get_format_instructions(),
     "history": lambda x: x.get("history", []),  
 }) | chat_template | self.general_llm | self.parser
-        def get_memory(session_id: str) -> InMemoryChatMessageHistory:
-            if session_id not in self.session_histories:
-                self.session_histories[session_id] = InMemoryChatMessageHistory()
-            return self.session_histories[session_id]
+        def get_memory(session_id: str) -> RedisChatMemory:
+            return RedisChatMemory(session_id=session_id)
         
         self.chain_with_history = RunnableWithMessageHistory(
-            base_chain,
-            get_memory,
+            runnable=base_chain,
+            get_session_history=get_memory, 
             input_messages_key="user_query",
             history_messages_key="history",
         )
@@ -319,7 +402,8 @@ class Assistant():
         try:
             response = await self.chain_with_history.ainvoke(
                 {"user_query": user_query},
-                config={"configurable": {"session_id": session_id}},
+                config={"configurable": {"session_id": session_id},
+                        "callbacks":[]},
             )
             logger.info("LangChain response generated successfully.")
             return response
