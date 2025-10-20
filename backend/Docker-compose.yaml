@@ -1,0 +1,13 @@
+
+services:
+  synq-api:
+    build: .
+    container_name: SynqAI API
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: ["uvicorn", "src.conturi.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: always

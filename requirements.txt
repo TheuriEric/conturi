@@ -1,1 +1,0 @@
-upstash_redis
