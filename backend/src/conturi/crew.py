@@ -128,39 +128,47 @@ class SynqCrew():
     def presentation_task(self) -> Task:
         return Task(config=self.tasks_config["presentation_task"])
 
-    @crew
-    def crew(self) -> Crew:
-        """Creates the Conturi crew"""
-        try:
-            logger.info("Building the Synq Crew")
-            tracker.reset()
-            agents = [
-                self.main_agent(),
-                self.event_agent(),
-                self.professional_agent(),
-                self.career_agent(),
-                self.presentation_agent()
-            ]
-            tasks = [
-                self.main_task(),
-                self.event_task(),
-                self.professional_task(),
-                self.career_task(),
-                self.presentation_task()
-            ]
-            return Crew(
-                agents=agents, 
-                tasks=tasks, 
-                process=Process.sequential,
-                verbose=True,
-                max_rpm=15
-            )
-        except Exception as e:
-            logger.exception("Failed to create Synq Crew")
-            raise
+    # @crew
+    # def crew(self) -> Crew:
+    #     """Creates the Conturi crew"""
+    #     try:
+    #         logger.info("Building the Synq Crew")
+    #         tracker.reset()
+    #         agents = [
+    #             self.main_agent(),
+    #             self.event_agent(),
+    #             self.professional_agent(),
+    #             self.career_agent(),
+    #             self.presentation_agent()
+    #         ]
+    #         tasks = [
+    #             self.main_task(),
+    #             self.event_task(),
+    #             self.professional_task(),
+    #             self.career_task(),
+    #             self.presentation_task()
+    #         ]
+    #         return Crew(
+    #             agents=agents, 
+    #             tasks=tasks, 
+    #             process=Process.sequential,
+    #             verbose=True,
+    #             max_rpm=15
+    #         )
+    #     except Exception as e:
+    #         logger.exception("Failed to create Synq Crew")
+    #         raise
+    def get_agent_and_task_map(self):
+        return {
+            "event_agent": {"agent": self.event_agent(), "task": self.event_task()},
+            "professional_agent": {"agent": self.professional_agent(), "task": self.professional_task()},
+            "career_agent": {"agent": self.career_agent(), "task": self.career_task()},
+            "main_agent": {"agent": self.main_agent(), "task": self.main_task()},
+            "presentation_agent": {"agent": self.presentation_agent(), "task": self.presentation_task()}
+        }
 
-if __name__ == "__main__":
-    synq = SynqCrew()
-    crew = synq.crew()
-    result = crew.run()
-    print(result)
+# if __name__ == "__main__":
+#     synq = SynqCrew()
+#     crew = synq.crew()
+#     result = crew.run()
+#     print(result)
