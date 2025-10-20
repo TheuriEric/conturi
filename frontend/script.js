@@ -50,8 +50,6 @@ async function sendMessage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Add JWT if using auth
-        // "Authorization": `Bearer ${localStorage.getItem("token")}`
       },
       body: JSON.stringify({ query: message })
     })
@@ -60,11 +58,16 @@ async function sendMessage() {
 
     const data = await response.json()
 
-    // Replace typing indicator with actual response
-    typingDiv.innerHTML = `<div class="message-content">${escapeHtml(data.answer || data.response || "No response received.")}</div>`
+    // Use top-level display key
+    let botMessage = data.output?.display || data.answer || data.response || "No response available."
+    const safeText = escapeHtml(botMessage);
+    const formattedMessage = safeText.replace(/\n/g, '<br>');
+    typingDiv.innerHTML = `<div class="message-content">${formattedMessage}</div>`
   } catch (error) {
-    typingDiv.innerHTML = `<div class="message-content error">⚠️ Error: ${error.message}</div>`
+    typingDiv.innerHTML = `<div class="message-content error">⚠️ Error: ${escapeHtml(error.message)}</div>`
   }
+
+
 
   chatMessages.scrollTop = chatMessages.scrollHeight
 }

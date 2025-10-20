@@ -33,7 +33,7 @@ event_task:
     **Objective:** Finds and curates local or virtual events based on user preferences 
     like location, price, and experience type (e.g., tech conferences, music festivals, 
     art exhibits). The user's query is also provided for context. User query: ({user_query})
-    **Behavior:** Use web_search_tool or integrated APIs to explore recent and upcoming events that match what the user wants to experience.  
+    **Behavior:** Use the sources provided as the Highest priority information source then web_search_tool or integrated APIs to explore recent and upcoming events that match what the user wants to experience. If the content from the sources is enough, you don't have to use the web_search_tool 
     **Guidelines:**  
       - Focus on verified, high-quality, and interesting events relevant to the user’s input.  
       - Adapt tone and event style based on user’s vibe (serene, adventurous, professional, etc.).  
@@ -50,6 +50,17 @@ event_task:
         fun_fact: str = Field(..., description="A rare, interesting, or educational fact related to the event, theme, or location")
     ```
   agent: event_agent
+  sources:
+    primary:
+      - name: Eventbrite
+        type: website
+        url: "https://www.eventbrite.com"
+      - name: Allevents.in
+        type: website
+        url: "https://allevents.in"
+      - name: Luma Events
+        type: website
+        url: "https://luma.com/discover"
   run_mode: independent
 
 professional_task:
@@ -205,49 +216,56 @@ career_task:
 presentation_task:
   description: >
     **Role:** Response Synthesis & Presentation Agent  
-    **Objective:** Refine and professionally present the combined outputs from other agents 
-    (main, event, professional, and career). Ensure coherence, stylistic consistency, and user-friendly presentation.  
+    **Objective:** Refine and professionally present the combined outputs from other agents
+    (main, event, professional, career). Only include sections with actual content.  
+    Generate a `display` key that summarizes all available content in a polished, chatbot-ready format.  
 
-    **Behavior:** - Accept as input one or more structured outputs (in JSON or structured text) from the other agents.  
+    **Behavior:**  
+      - Accept as input one or more structured outputs (in JSON or structured text) from other agents.  
+      - Populate a top-level `output` dictionary containing:
+          - `summary`: Concise overview of the results.
+          - `sections`: Only include content for sections that have results (Events, Professionals, Career Opportunities, Additional Insights).
+          - `display`: A single string combining `summary` and all available sections in Markdown/chat-style format, ready for direct rendering in a chat UI.
+          - `metadata`: sources and style information.
+      - Only include sections with actual content; ignore empty sections.
       - Clean, reformat, and rewrite the text for:
-          - Grammar, punctuation, and clarity  
-          - Natural flow and readability  
-          - Elimination of redundancy or overlap  
-      - Maintain factual and semantic accuracy from the original outputs.  
-      - Use markdown or structured formatting (headings, bullet points, sections) for readability.  
-      - When multiple categories are present (events, professionals, career opportunities), organize the content under clear headings.  
-      - Ensure transitions between sections are smooth and that the tone matches Synq’s style — **youthful, polished, and professional.**
+          - Grammar, punctuation, clarity
+          - Natural flow and readability
+          - Elimination of redundancy or overlap
+      - Ensure smooth transitions and a tone that matches Synq’s style — **youthful, polished, and professional**.
+      - Intelligent follow-up: Suggest other relevant services without mentioning internal agent names.
 
-    **Guidelines:** - Avoid robotic or repetitive phrasing.  
-      - If any section feels too long, summarize while retaining key insights.  
-      - Include brief introductory and closing sentences that make the entire response feel intentional and human.  
-      - **CRITICAL: Intelligent Follow-up and Masking:** After presenting the primary results, always conclude the response by intelligently offering to use the system's *other* capabilities that are relevant to the user's result. For example, if events were found, offer to find relevant professionals or career opportunities. **NEVER** use the internal agent names (e.g., `professional_agent`). Instead, use the public-facing agent roles: **Event Discovery Curator, Professional Networking Analyst, or Career Intelligence Analyst**.
   expected_output: >
-    A refined, ready-to-display response combining all agent outputs, structured as:
+    A structured response, always wrapped in a top-level `output` dictionary:
+
     ```json
     {
-      "summary": "Beautifully rewritten text for user display",
-      "sections": {
-        "Events": "Polished event summaries (if any)",
-        "Professionals": "Well-formatted list of people/companies with brief context",
-        "Career Opportunities": "Readable, bullet-listed job/internship results",
-        "Additional Insights": "Optional highlights, key takeaways, or next steps"
-      },
-      "metadata": {
-        "sources": ["event_agent", "professional_agent", "career_agent"],
-        "style": "professional, youthful, conversational"
+      "output": {
+        "summary": "Concise overview of results",
+        "sections": {
+          "Events": "Markdown-formatted event summaries (if available)",
+          "Professionals": "Markdown-formatted professional insights (if available)",
+          "Career Opportunities": "Markdown-formatted job listings (if available)",
+          "Additional Insights": "Optional highlights, tips, or next steps"
+        },
+        "display": "Markdown/chat-ready string combining summary and available sections, modified in a way that will easily be displayed in the chatbot UI",
+        "metadata": {
+          "sources": ["event_agent", "professional_agent", "career_agent"],
+          "style": "professional, youthful, conversational"
+        }
       }
     }
     ```
 
   config:
     input_format: "JSON or structured multi-agent text"
-    output_format: "Refined structured JSON + markdown summary"
+    output_format: "Refined structured JSON + markdown/chat-ready summary"
     ensure_grammar_check: true
     remove_duplicates: true
     unify_tone: true
     max_length: 1200
     fallback_strategy: "Return raw output if polishing fails"
-
+    populate_only_available_sections: true  
+    generate_display_key: true
   agent: presentation_agent
   run_mode: refinement
