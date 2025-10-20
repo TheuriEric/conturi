@@ -18,6 +18,8 @@ from upstash_redis import Redis
 import requests
 import os
 import asyncio
+import time
+import json
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO,
@@ -241,14 +243,16 @@ class AIModels():
                 raise e2
 
 from langchain_core.runnables import RunnableMap
-import json
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 MESSAGE_EXPIRY_SECONDS = 86400
 
-class RedisChatMemory:
+# Save this to prevent kuharibu mambo
+# Save ya pili
+
+class RedisChatMemory(BaseChatMessageHistory):
     """Persist chat sessions in Redis for long-term memory."""
     
     def __init__(self, session_id: str, session_expiry_seconds: int = MESSAGE_EXPIRY_SECONDS): 
@@ -279,7 +283,7 @@ class RedisChatMemory:
             serialized = []
             for m in messages:
                 msg_type = "human" if isinstance(m, HumanMessage) else "ai"
-                serialized.append({"type": msg_type, "content": m.content})
+                serialized.append({"type": msg_type, "content": m.content,"timestamp": int(time.time()) })
             redis.set(self.session_id, json.dumps(serialized), ex=self.expiry)
         except Exception as e:
             logger.error(f"Failed to save Redis history for session {self.session_id}: {e}")
@@ -289,10 +293,10 @@ class RedisChatMemory:
         """Load conversation history synchronously (required property)."""
         return self._get_messages_sync()
     
-    def add_user_message(self, message: str) -> None:
-        """Add a human message synchronously."""
+    def add_messages(self, messages: list[BaseMessage]) -> None:
+        """Add multiple messages synchronously."""
         current_messages = self._get_messages_sync()
-        current_messages.append(HumanMessage(content=message))
+        current_messages.extend(messages)
         self._save_messages_sync(current_messages)
 
     def add_ai_message(self, message: str) -> None:
@@ -310,17 +314,11 @@ class RedisChatMemory:
         """Load conversation history asynchronously (REQUIRED by ainvoke)."""
         return await asyncio.to_thread(self._get_messages_sync) # <-- Use asyncio.to_thread
 
-    async def aadd_user_message(self, message: str) -> None:
-        """Add a human message asynchronously (REQUIRED by ainvoke)."""
+    async def aadd_messages(self, messages: list[BaseMessage]) -> None:
+        """Add multiple messages asynchronously (REQUIRED by ainvoke)."""
         current_messages = await self.aget_messages()
-        current_messages.append(HumanMessage(content=message))
-        await asyncio.to_thread(self._save_messages_sync, current_messages) # <-- Use asyncio.to_thread
-
-    async def aadd_ai_message(self, message: str) -> None:
-        """Add an AI message asynchronously (REQUIRED by ainvoke)."""
-        current_messages = await self.aget_messages()
-        current_messages.append(AIMessage(content=message))
-        await asyncio.to_thread(self._save_messages_sync, current_messages) # <-- Use asyncio.to_thread
+        current_messages.extend(messages)
+        await asyncio.to_thread(self._save_messages_sync, current_messages)
     
     async def aclear(self) -> None:
         """Clear all messages asynchronously."""
@@ -376,21 +374,12 @@ class Assistant():
             MessagesPlaceholder(variable_name="history"),
             ("human", "{user_query}"),
         ])
-        base_chain = RunnableMap({
-    "rag_content": lambda x: self.retriver.rag_tool(x["user_query"]),
-    "user_query": RunnablePassthrough(),
-    "format_instructions": lambda x: self.parser.get_format_instructions(),
-    "history": lambda x: x.get("history", []),  
-}) | chat_template | self.general_llm | self.parser
-        def get_memory(session_id: str) -> RedisChatMemory:
-            return RedisChatMemory(session_id=session_id)
-        
-        self.chain_with_history = RunnableWithMessageHistory(
-            runnable=base_chain,
-            get_session_history=get_memory, 
-            input_messages_key="user_query",
-            history_messages_key="history",
-        )
+        self.chain = RunnableMap({
+            "rag_content": lambda x: self.retriver.rag_tool(x["user_query"]),
+            "user_query": lambda x: x["user_query"],
+            "format_instructions": lambda x: self.parser.get_format_instructions(),
+            "history": lambda x: x["history"],
+        }) | chat_template | self.general_llm | self.parser
 
         
     
@@ -400,11 +389,30 @@ class Assistant():
         """
         logger.info(f"Invoking main chain for query: {user_query} with Session ID: {session_id}")
         try:
-            response = await self.chain_with_history.ainvoke(
-                {"user_query": user_query},
-                config={"configurable": {"session_id": session_id},
-                        "callbacks":[]},
-            )
+            # Step 1: Get memory
+            memory = RedisChatMemory(session_id=session_id)
+            
+            # Step 2: Load existing history from Redis
+            history = await memory.aget_messages()
+            logger.info(f"Loaded {len(history)} messages from history")
+            
+            # Step 3: Run the chain with history
+            response = await self.chain.ainvoke({
+                "user_query": user_query,
+                "history": history
+            })
+            
+            # Step 4: Save both user message and AI response to Redis
+            logger.info("Saving conversation to Redis...")
+            await memory.aadd_messages([
+                HumanMessage(content=user_query),
+                AIMessage(content=json.dumps(response))
+            ])
+            
+            # Step 5: Verify save worked
+            updated_history = await memory.aget_messages()
+            logger.info(f"History now has {len(updated_history)} messages")
+            
             logger.info("LangChain response generated successfully.")
             return response
         except Exception as e:
