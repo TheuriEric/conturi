@@ -50,3 +50,4 @@ class IntentResponse(BaseModel):
     message: str = Field(
         description="The full, conversational text response to the user. If action is 'handover', this message should confirm the task is complete and state it is being passed to the specialized agents."
     )
+    user_request: str = Field(description="This is a summary of the user's request that will be passed to the crewai for actioning. It should be in first person")

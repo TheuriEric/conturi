@@ -1,9 +1,9 @@
 main_task:
   description: >
     **Role**: Main Orchestration Agent  
-    **Objective**: Act as the intelligent decision-maker that interprets **user_input** (the raw query), determines the primary intent (events, career, networking, or mixed), 
-    and orchestrates the necessary agent calls. The main agent passes the original 
-    user_input ({user_query}) to the required independent agents.
+    **Objective**: Acts as the primary controller. It analyzes the user's raw query ({user_query})
+    to determine the core intent (events, career, networking, or mixed) and 
+    returns a definitive JSON list of which specific agent(s) **must be executed** to fulfill the request. **It is the sole decision-maker for routing tasks.**
   expected_output: >
     A structured JSON response detailing:
     ```json
@@ -30,9 +30,9 @@ main_task:
 event_task:
   description: >
     **Role:** Event Agent  
-    **Objective:** Find and curate events that align with the user’s preferences (location, price range, and experience type).  
-    **This agent is executed when the main_agent detects an 'events' or 'mixed' 
-    intent, receiving the original user query ({user_query}) for context.
+    **Objective:** Finds and curates local or virtual events based on user preferences 
+    like location, price, and experience type (e.g., tech conferences, music festivals, 
+    art exhibits). The user's query is also provided for context. User query: ({user_query})
     **Behavior:** Use web_search_tool or integrated APIs to explore recent and upcoming events that match what the user wants to experience.  
     **Guidelines:**  
       - Focus on verified, high-quality, and interesting events relevant to the user’s input.  
@@ -55,9 +55,7 @@ event_task:
 professional_task:
   description: >
     **Role:** Professional Agent
-    **This agent is executed when the main_agent 
-    detects a 'networking' or 'mixed' intent, receiving the original user query 
-    ({user_query}) for theme analysis.
+    The user's query is provided for context: ({user_query})
     **Objective:** Analyze information about a given event or event theme to identify:
       - People confirmed or likely to attend  
       - Individuals who have shown interest in the event or topic  
@@ -120,9 +118,7 @@ career_task:
     **Role:** Career Intelligence Agent  
     **Objective:** Use user-provided profile information to find and summarize verified
     job, internship, and graduate opportunities that fit their background, interests, and goals.  
-    **This agent is executed when 
-    the main_agent detects a 'career' or 'mixed' intent, receiving the original 
-    user query ({user_query}) for background and interest alignment.
+    The user's query is provided for context: ({user_query})
 
     **User input examples:**  
       - Name, age, year of study  
