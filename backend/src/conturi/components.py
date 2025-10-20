@@ -40,6 +40,7 @@ try:
     logger.info("Successfully loaded the embedding model: Cohere")
 except Exception as e:
     logger.exception("Failed to load Cohere's embedding model")
+    raise e
 
 try:
     logger.info("Loading the vector database")
