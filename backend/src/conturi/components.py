@@ -23,7 +23,6 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
 try:
     project_root = Path(__file__).resolve().parent.parent.parent
     pdf_path = f"{project_root}/knowledge"
@@ -75,7 +74,7 @@ class ContentRetriever():
     def web_search_tool(self,query: str) -> str:
         """
         Searches the web using DuckDuckGo and extracts readable content
-        from top search results. Ideal for generating blog posts.
+        from top search results.
         """
         try:
             logger.info(f"Web Search Tool: Searching for '{query}'...")
@@ -275,7 +274,9 @@ class Assistant():
             3.  **Specialized Request Handling (The Pivot):**
                 * If the user implies a need for a specialized service, check both: a) The Synq System Knowledge for required info and b) The Conversation History for information already provided.
                 * If information is MISSING, set 'action' to **'response'** and ask concise, leading questions.
-            4.  **Complete Request Handling (Final Action):** If the request is complete, set the 'action' field to **'handover'**. The 'message' must summarize the request and state that the task is being passed to the specialized agents.
+            4.  **Complete Request Handling (Final Action):** If the request is complete, set the 'action' field to **'handover'**. The 'message' must summarize the request and state that the task is being passed to the specialized agents. The 'user_request' should be a summary of the user's complete request, in first person...If the user is requesting for a service, you should summarize in a well formatted way for example: 
+            - "I am looking for tech events in Nairobi that are taking place this week and the weekend and I do not have a specific budget range." 
+            - "I am looking for entry-level accounting opportunities in Nairobi or even remote.
             5.  **Agent Masking:** Use the human-readable service title.
 
             ---

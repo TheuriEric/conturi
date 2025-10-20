@@ -53,32 +53,26 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
         logger.error("SynqCrew factory instance is not available.")
         return "System error: Orchestration factory not initialized."
 
-    # Retrieve all tasks and agents from the factory/loader
     try:
         agent_task_map = crew_instance.get_agent_and_task_map()
-    except AttributeError:
-        logger.error("Crew instance does not have get_agent_and_task_map method.")
+    except Exception as e:
+        logger.error("Crew instance failed to get the agents and tasks")
         return "System error: Failed to load agent map."
 
-    # --- PHASE 1: ORCHESTRATION (Determining Route) ---
     logger.info("Phase 1: Running Main Orchestration Agent...")
     
     main_agent = agent_task_map["main_agent"]["agent"]
     main_task = agent_task_map["main_agent"]["task"]
     
-    # 🔥 FIX: Initialize task.config and description if they are missing or None 🔥
     if main_task.config is None:
         main_task.config = {}
     if "description" not in main_task.config:
-        # Use the original task description as the base
         main_task.config["description"] = main_task.description
         
     main_task.agent = main_agent
     
-    # Inject the user query into the main task's description for the LLM to process
     main_task.config["description"] += f"\n\nUSER QUERY: {user_query}"
     
-    # Create a minimal crew to run ONLY the main agent
     orchestration_crew = Crew(
         agents=[main_agent], 
         tasks=[main_task], 
@@ -86,18 +80,15 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
         verbose=False 
     )
 
-    # Execute the orchestration
     try:
         orchestration_result = orchestration_crew.kickoff()
-        # Assume the main agent's output is the desired JSON string
         import json
         result_str = str(orchestration_result)
         router_output = json.loads(result_str)
         required_agents: List[str] = router_output.get("required_agents", [])
     except Exception as e:
         logger.error(f"Main Orchestration Agent failed: {e}")
-        return "An error occurred during routing. Please try again later."
-
+        return "An error occurred during Main Agent router. Please try again later."
 
     # --- PHASE 2: EXECUTION (Running Workers) ---
     if not required_agents:
@@ -108,19 +99,16 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
     execution_agents = []
     execution_tasks = []
 
-    # 1. Build the list of required tasks
     for name in required_agents:
         if name in agent_task_map and name != "main_agent":
             task_instance = agent_task_map[name]["task"]
             task_instance.agent = agent_task_map[name]["agent"]
 
-            # 🔥 FIX: Ensure worker task config is initialized safely 🔥
             if task_instance.config is None:
                 task_instance.config = {}
             if "description" not in task_instance.config:
                 task_instance.config["description"] = task_instance.description
             
-            # Pass the original query to the worker agents for context
             task_instance.config["description"] += f"\n\nCONTEXT/QUERY: {user_query}"
             
             execution_tasks.append(task_instance)
@@ -147,8 +135,8 @@ async def run_synq_orchestration(user_query: str, crew_instance: Any) -> str:
     execution_crew = Crew(
         agents=list(set(execution_agents)),
         tasks=execution_tasks,
-        process=Process.sequential, # Use sequential to guarantee Presentation runs last
-        verbose=False
+        process=Process.sequential,
+        verbose=True
     )
     
     # --- PHASE 3: RESULT (Final Output) ---
@@ -173,10 +161,10 @@ async def synq(query: str = Body(..., embed=True)):
         try:
             intent_response_obj:dict = await assistant.langchain(user_query=query, session_id=session_id)
             action = intent_response_obj.get("action", "").lower()
+            summary = intent_response_obj.get("user_request", "").lower()
             if action == "handover" and crew_instance:
                     logger.info("Assistant signaled HANDOVER (Structured). Executing CrewAI...")
-                    # --- FIX: Pass crew_instance ---
-                    crew_result = await run_synq_orchestration(user_query=query, crew_instance=crew_instance)
+                    crew_result = await run_synq_orchestration(user_query=summary, crew_instance=crew_instance)
                     final_response = crew_result
                     status = "executed"
             else:
@@ -194,7 +182,6 @@ async def synq(query: str = Body(..., embed=True)):
             status = "error"
         else:
             try:
-                # --- FIX: Pass crew_instance ---
                 crew_result = await run_synq_orchestration(user_query=query, crew_instance=crew_instance)
                 final_response = crew_result
                 status = "executed"
