@@ -4,6 +4,8 @@ const closeChat = document.getElementById("closeChat")
 const chatInput = document.getElementById("chatInput")
 const sendButton = document.getElementById("sendButton")
 const chatMessages = document.getElementById("chatMessages")
+const careerForm = document.getElementById("careerForm")
+
 
 // Open chat modal
 chatButton.addEventListener("click", () => {
@@ -130,9 +132,75 @@ function escapeHtml(text) {
 }
 
 // CTA buttons
-document.querySelectorAll(".btn-primary, .cta-button").forEach((button) => {
+document.querySelectorAll(".cta-button, .hero .btn-primary").forEach((button) => {
   button.addEventListener("click", () => {
     chatModal.classList.add("active")
     chatInput.focus()
   })
 })
+
+if (careerForm) {
+  careerForm.addEventListener("submit", async (e) => {
+    e.preventDefault()
+
+    const firstName = document.getElementById("firstName").value
+    const lastName = document.getElementById("lastName").value
+    const email = document.getElementById("email").value
+    const prompt = document.getElementById("prompt").value
+    const emailFrequency = document.getElementById("emailFrequency").value
+
+    console.log("Form submitted:", {
+      firstName,
+      lastName,
+      email,
+      prompt,
+      emailFrequency,
+    })
+
+    try {
+      // Show loading state
+      const submitButton = careerForm.querySelector('button[type="submit"]')
+      const originalText = submitButton.textContent
+      submitButton.textContent = "Setting up your automation..."
+      submitButton.disabled = true
+
+      // Send to your FastAPI endpoint
+      const response = await fetch("http://localhost:8000/automation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          schedule: emailFrequency,
+          prompt: prompt
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      console.log("Automation setup successful:", result)
+      
+      // Show success message
+      alert(`✅ Perfect, ${firstName}! Your Synq Auto is now active. You'll receive ${emailFrequency} insights from Synq`)
+
+      // Reset form
+      careerForm.reset()
+      
+    } catch (error) {
+      console.error("Automation setup failed:", error)
+      alert(`❌ Sorry, we couldn't set up your automation right now. Please try again. Error: ${error.message}`)
+    } finally {
+      // Reset button state
+      const submitButton = careerForm.querySelector('button[type="submit"]')
+      submitButton.textContent = "Generate My Insights"
+      submitButton.disabled = false
+    }
+  })
+}

@@ -18,3 +18,4 @@ mcp
 starlette
 pandas
 langchain-cohere
+httpx

@@ -38,6 +38,8 @@ class CareerOutput(BaseModel):
     openings: List[JobDetails] = Field(default_factory=list, description="List of available positions")
 
 class N8n(BaseModel):
+    first_name: str = Field(..., description="User's first name")
+    last_name: str = Field(..., description="User's last name")
     email: str = Field(..., description="User's email")
     schedule: str = Field( description="Does the user want to be sent emails of the outputs")
     prompt: str = Field(..., description="How does the user want the email to be sent? Any special requests/formatting?")

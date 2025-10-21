@@ -6,8 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from .crew import SynqCrew
 import json
+import httpx
 import os
 from typing import List, Dict, Any
+from .chat_models import N8n
 from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("Synq AI")
 
@@ -218,3 +220,53 @@ async def synq(query: str = Body(..., embed=True)):
         
     return {"response":final_response,
             "status": status}
+
+
+@app.post("/automation")
+async def autosynq(request: N8n):
+    try:
+        # Log the received data
+        logger.info(f"🎯 Received automation request from: {request.first_name} {request.last_name}")
+        logger.info(f"📧 Email: {request.email}")
+        logger.info(f"⏰ Schedule: {request.schedule}")
+        logger.info(f"🎯 Prompt: {request.prompt}")
+        
+        
+        n8n_response = await call_n8n_webhook({
+            "first_name": request.first_name,
+            "last_name": request.last_name,
+            "email": request.email,
+            "schedule": request.schedule,
+            "prompt": request.prompt
+        })
+        
+        return {
+            "status": "success",
+            "message": f"Automation setup complete for {request.first_name}",
+            "data": {
+                "user": f"{request.first_name} {request.last_name}",
+                "email": request.email,
+                "schedule": request.schedule,
+                "preferences": request.prompt
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to setup automation: {str(e)}")
+
+async def call_n8n_webhook(user_data: dict):
+    """
+    This function will call your n8n webhook with the user data
+    """
+    n8n_webhook_url = "https://synq.app.n8n.cloud/webhook/synq-auto"
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            n8n_webhook_url,
+            json=user_data,
+            headers={"Content-Type": "application/json"},
+            timeout=30.0
+        )
+        return {
+            "status_code": response.status_code,
+            "response_text": response.text
+        }
