@@ -44,7 +44,9 @@ except Exception as e:
     logger.exception("Failed to initialize the crew")
     crew_instance = None
 
-origins = []
+origins = ["http://127.0.0.1:5500/",
+           "http://localhost:8000",
+           "https://synqio.netlify.app/"]
 
 app.add_middleware(
     CORSMiddleware,

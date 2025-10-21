@@ -47,7 +47,7 @@ async function sendMessage() {
   chatMessages.scrollTop = chatMessages.scrollHeight
 
   try {
-  const response = await fetch("http://localhost:8000/chat", {
+  const response = await fetch("https://synqai.onrender.com/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -165,7 +165,7 @@ if (careerForm) {
       submitButton.disabled = true
 
       // Send to your FastAPI endpoint
-      const response = await fetch("http://localhost:8000/automation", {
+      const response = await fetch("https://synqai.onrender.com/automation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
