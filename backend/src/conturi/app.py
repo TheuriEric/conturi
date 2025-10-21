@@ -1,9 +1,13 @@
 from dotenv import load_dotenv
 from .components import logger, router, Assistant
 from crewai import Crew, Process
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from .crew import SynqCrew
 import json
 import httpx
@@ -14,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("Synq AI")
 
 
+limiter = Limiter(key_func=get_remote_address, default_limits=["5/minute"])
 
 load_dotenv()
 logger.info("Loaded environment variables")
@@ -23,6 +28,10 @@ app = FastAPI(
     description="Backend for Synq",
     version="1.0.0",  
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 try:
     assistant = Assistant()
     logger.info("Initialized assistants")
@@ -173,7 +182,8 @@ async def root():
     return {"Message": "Visit /docs"}
 
 @app.post("/chat")
-async def synq(query: str = Body(..., embed=True)):
+@limiter.limit("5/minute")
+async def synq(request: Request,query: str = Body(..., embed=True)):
     final_response = "No response generated"
     status = "Error"
     session_id = "trial"
