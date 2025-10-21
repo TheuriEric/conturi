@@ -250,9 +250,6 @@ from langchain.memory import ConversationBufferMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 MESSAGE_EXPIRY_SECONDS = 86400
 
-# Save this to prevent kuharibu mambo
-# Save ya pili
-
 class RedisChatMemory(BaseChatMessageHistory):
     """Persist chat sessions in Redis for long-term memory."""
     
