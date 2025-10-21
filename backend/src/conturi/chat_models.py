@@ -39,7 +39,7 @@ class CareerOutput(BaseModel):
 
 class N8n(BaseModel):
     email: str = Field(..., description="User's email")
-    schedule: str = Field(..., description="Does the user want to be sent emails of the outputs")
+    schedule: str = Field( description="Does the user want to be sent emails of the outputs")
     prompt: str = Field(..., description="How does the user want the email to be sent? Any special requests/formatting?")
 
 class IntentResponse(BaseModel):

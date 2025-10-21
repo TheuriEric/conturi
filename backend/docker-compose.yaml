@@ -2,9 +2,9 @@
 services:
   synq-api:
     build: .
-    container_name: SynqAI API
+    container_name: synq_api
     env_file:
-      - .env
+      - src/conturi/.env
     ports:
       - "8000:8000"
     volumes:

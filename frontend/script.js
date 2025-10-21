@@ -45,28 +45,71 @@ async function sendMessage() {
   chatMessages.scrollTop = chatMessages.scrollHeight
 
   try {
-    // 🔗 Call backend
-    const response = await fetch("http://localhost:8000/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: message })
-    })
+  const response = await fetch("http://localhost:8000/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: message })
+  });
 
-    if (!response.ok) throw new Error("Network error")
+  if (!response.ok) throw new Error("Network error");
 
-    const data = await response.json()
+  const rawResponseText = await response.text();
+  console.log("=== RAW CREWAI RESPONSE ===");
+  console.log("Raw response text:", rawResponseText);
+  console.log("Raw response length:", rawResponseText.length);
+  console.log("=== END RAW RESPONSE ===");
 
-    // Use top-level display key
-    let botMessage = data.output?.display || data.answer || data.response || "No response available."
-    const safeText = escapeHtml(botMessage);
-    const formattedMessage = safeText.replace(/\n/g, '<br>');
-    typingDiv.innerHTML = `<div class="message-content">${formattedMessage}</div>`
-  } catch (error) {
-    typingDiv.innerHTML = `<div class="message-content error">⚠️ Error: ${escapeHtml(error.message)}</div>`
+  const data = JSON.parse(rawResponseText);
+  
+  console.log("=== DEBUG: Checking response structure ===");
+  console.log("Full parsed data object:", data);
+  console.log("data.response exists:", !!data.response, "Value:", data.response);
+  console.log("data.answer exists:", !!data.answer, "Value:", data.answer);
+  console.log("data.output exists:", !!data.output, "Value:", data.output);
+  
+  if (data.output) {
+    console.log("data.output is an object:", typeof data.output === 'object');
+    console.log("data.output.display exists:", !!data.output.display);
+    console.log("data.output.display type:", typeof data.output.display);
+    console.log("data.output.display value:", data.output.display);
+    
+    console.log("Full data.output structure:", JSON.stringify(data.output, null, 2));
+  } else {
+    console.log("data.output is undefined or null");
+  }
+  console.log("=== END DEBUG ===");
+
+  let botMessage;
+  
+  if (data.response) {
+    botMessage = data.response;
+    console.log("✅ Using general chat: data.response");
+  }
+  else if (data.answer) {
+    botMessage = data.answer;
+    console.log("✅ Using alternative chat: data.answer");
+  }
+  else if (data.output && data.output.display) {
+    botMessage = data.output.display;
+    console.log("✅ Using CrewAI: data.output.display");
+  }
+  else {
+    botMessage = "No response available.";
+    console.log("❌ No valid response format found");
   }
 
+  console.log("Final bot message:", botMessage);
+
+  const safeText = escapeHtml(botMessage);
+  const formattedMessage = safeText.replace(/\n/g, '<br>');
+  typingDiv.innerHTML = `<div class="message-content">${formattedMessage}</div>`
+  
+} catch (error) {
+  console.error("Full error:", error);
+  typingDiv.innerHTML = `<div class="message-content error">⚠️ Error: ${escapeHtml(error.message)}</div>`
+}
 
 
   chatMessages.scrollTop = chatMessages.scrollHeight
