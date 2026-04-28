@@ -437,6 +437,8 @@ footer {
   height: 100%;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 1000;
+  align-items: center;
+  justify-content: center;
   animation: fadeIn 0.3s ease;
 }
 
@@ -458,14 +460,15 @@ footer {
 .chat-container {
   background-color: var(--bg-light);
   border-radius: 1rem;
-  width: 90%;
-  max-width: 500px;
+  width: 75vw;
   height: 80vh;
-  max-height: 700px;
+  border-radius: 15px;
+  position: relative;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease;
+  scroll-behavior: smooth;
 }
 
 @keyframes slideUp {
@@ -508,7 +511,7 @@ footer {
 }
 
 .chat-messages {
-  flex: 1;
+  flex-grow: 1;
   overflow-y: auto;
   padding: 1.5rem;
   display: flex;

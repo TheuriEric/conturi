@@ -4,7 +4,7 @@ import warnings
 
 from datetime import datetime
 
-from conturi.crew import Conturi
+from synq.crew import Conturi
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 

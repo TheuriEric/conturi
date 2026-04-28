@@ -48,6 +48,7 @@ async function sendMessage() {
 
   try {
   const response = await fetch("https://synqai.onrender.com/chat", {
+  // const response = await fetch("http://127.0.0.1:8000/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -58,51 +59,51 @@ async function sendMessage() {
   if (!response.ok) throw new Error("Network error");
 
   const rawResponseText = await response.text();
-  console.log("=== RAW CREWAI RESPONSE ===");
-  console.log("Raw response text:", rawResponseText);
-  console.log("Raw response length:", rawResponseText.length);
-  console.log("=== END RAW RESPONSE ===");
+  // console.log("=== RAW CREWAI RESPONSE ===");
+  // console.log("Raw response text:", rawResponseText);
+  // console.log("Raw response length:", rawResponseText.length);
+  // console.log("=== END RAW RESPONSE ===");
 
   const data = JSON.parse(rawResponseText);
   
-  console.log("=== DEBUG: Checking response structure ===");
-  console.log("Full parsed data object:", data);
-  console.log("data.response exists:", !!data.response, "Value:", data.response);
-  console.log("data.answer exists:", !!data.answer, "Value:", data.answer);
-  console.log("data.output exists:", !!data.output, "Value:", data.output);
+  // console.log("=== DEBUG: Checking response structure ===");
+  // console.log("Full parsed data object:", data);
+  // console.log("data.response exists:", !!data.response, "Value:", data.response);
+  // console.log("data.answer exists:", !!data.answer, "Value:", data.answer);
+  // console.log("data.output exists:", !!data.output, "Value:", data.output);
   
   if (data.output) {
-    console.log("data.output is an object:", typeof data.output === 'object');
-    console.log("data.output.display exists:", !!data.output.display);
-    console.log("data.output.display type:", typeof data.output.display);
-    console.log("data.output.display value:", data.output.display);
+    // console.log("data.output is an object:", typeof data.output === 'object');
+    // console.log("data.output.display exists:", !!data.output.display);
+    // console.log("data.output.display type:", typeof data.output.display);
+    // console.log("data.output.display value:", data.output.display);
     
-    console.log("Full data.output structure:", JSON.stringify(data.output, null, 2));
+    // console.log("Full data.output structure:", JSON.stringify(data.output, null, 2));
   } else {
-    console.log("data.output is undefined or null");
+    // console.log("data.output is undefined or null");
   }
-  console.log("=== END DEBUG ===");
+  // console.log("=== END DEBUG ===");
 
   let botMessage;
   
   if (data.response) {
     botMessage = data.response;
-    console.log("✅ Using general chat: data.response");
+    // console.log("✅ Using general chat: data.response");
   }
   else if (data.answer) {
     botMessage = data.answer;
-    console.log("✅ Using alternative chat: data.answer");
+    // console.log("✅ Using alternative chat: data.answer");
   }
   else if (data.output && data.output.display) {
     botMessage = data.output.display;
-    console.log("✅ Using CrewAI: data.output.display");
+    // console.log("✅ Using CrewAI: data.output.display");
   }
   else {
     botMessage = "No response available.";
-    console.log("❌ No valid response format found");
+    // console.log("❌ No valid response format found");
   }
 
-  console.log("Final bot message:", botMessage);
+  // console.log("Final bot message:", botMessage);
 
   const safeText = escapeHtml(botMessage);
   const formattedMessage = safeText.replace(/\n/g, '<br>');
