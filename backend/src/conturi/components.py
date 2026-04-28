@@ -1,12 +1,12 @@
 import logging
 from langchain_chroma import Chroma
 from langchain_cohere import CohereEmbeddings
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain.memory import ConversationBufferMemory
+from langchain_classic.memory import ConversationBufferMemory
 from .chat_models import IntentResponse
 import os
 from pathlib import Path
@@ -244,17 +244,17 @@ class AIModels():
                 raise e2
 
 from langchain_core.runnables import RunnableMap
-from langchain.schema import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain.memory import ConversationBufferMemory
-from langchain.schema import BaseMessage, HumanMessage, AIMessage
+from langchain_classic.memory import ConversationBufferMemory
 MESSAGE_EXPIRY_SECONDS = 86400
 
 class RedisChatMemory(BaseChatMessageHistory):
     """Persist chat sessions in Redis for long-term memory."""
     
     def __init__(self, session_id: str, session_expiry_seconds: int = MESSAGE_EXPIRY_SECONDS): 
-        self.session_id = session_id # Store the session_id
+        self.prefix = "synq"
+        self.session_id = f"{self.prefix}:session:{session_id}" # Store the session_id
         self.expiry = session_expiry_seconds
 
     def _get_messages_sync(self) -> list[BaseMessage]:
