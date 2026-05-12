@@ -1,0 +1,26 @@
+name: Upstash Keep Alive
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows you to trigger it manually from the Actions tab
+
+jobs:
+  ping-redis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Redis Client
+        run: pip install redis
+
+      - name: Execute Ping
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: python keep_alive.py
